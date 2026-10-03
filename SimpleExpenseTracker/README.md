@@ -7,7 +7,7 @@
 - Phase 1：Solution、分層架構、EF Core InitialCreate、預設資料，已驗證並提交。
 - Phase 2：交易／分類／帳戶 API、驗證、API 測試，已驗證並提交。
 - Phase 3：手機記帳流程、帳目清單、新增／編輯／刪除，已驗證並提交。
-- Phase 4：每月摘要、分類統計、六個月趨勢與圖表已實作。後端測試目前遭本機 Windows Smart App Control 封鎖，尚未完成此階段驗收。
+- Phase 4：每月摘要、分類統計、六個月趨勢與圖表已實作。已使用系統安裝的 .NET 8.0.425 完成建置與後端測試，前端建置與測試亦通過。
 - Phase 5：設定管理畫面與 PWA 尚未實作。
 - Phase 6：完整驗收、重構與最終測試尚未完成。
 
@@ -139,7 +139,7 @@ pnpm test
 
 API 測試使用獨立暫存 SQLite 檔，不會碰觸開發資料。Phase 3 曾完整通過 6 個後端測試、4 個前端測試，並以 Edge 實際完成 390px 手機新增／編輯／刪除。
 
-2026/10/03 的 Phase 4 測試遭 Windows Smart App Control 封鎖 `SimpleExpenseTracker.Tests.dll`（CodeIntegrity Event 3077、錯誤 0x800711C7）。此時 `dotnet test` 可能回傳 exit code 0，但顯示未探索到任何測試，**不表示通過**。需在允許此開發程式碼的環境重新執行；未修改作業系統安全政策。
+2026/10/03 的 Phase 4 測試遭 Windows Smart App Control 封鎖 `SimpleExpenseTracker.Tests.dll`（CodeIntegrity Event 3077、錯誤 0x800711C7）。此時 `dotnet test` 可能回傳 exit code 0，但顯示未探索到任何測試，**不表示通過**。需在允許此開發程式碼的環境重新執行；未修改作業系統安全政策。後續安裝系統 .NET 8 SDK 8.0.425 後已重新成功執行全部 13 個測試（含 5 個繼承重複案例），先前阻擋已解除。
 
 ## Development Notes
 
@@ -150,3 +150,4 @@ API 測試使用獨立暫存 SQLite 檔，不會碰觸開發資料。Phase 3 曾
 - InitialBalance 保留但不參與摘要；摘要結餘只代表當月收入減支出。
 - API 無登入，預設僅供本機個人開發使用；尚未建立公開服務部署。
 - Git 未設定使用者作者，因此階段提交使用 `Codex <codex@localhost>`，未修改全域 Git 設定。
+
