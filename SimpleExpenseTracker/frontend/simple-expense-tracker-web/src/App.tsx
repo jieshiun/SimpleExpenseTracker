@@ -3,6 +3,7 @@ import { api, type Account, type Category, type Page, type Transaction } from '.
 import Icon, { type IconName } from './Icon';
 import TransactionForm from './TransactionForm';
 import TransactionList from './TransactionList';
+import Settings from './Settings';
 import { SummaryCards, CategoryChart, MonthlyChart, type Summary, type CategoryStat, type MonthlyStat } from './Statistics';
 type Tab = 'home' | 'list' | 'chart' | 'settings';
 const tabs: { id: Tab; title: string; icon: IconName }[] = [{ id: 'home', title: '首頁', icon: 'home' }, { id: 'list', title: '帳目', icon: 'list' }, { id: 'chart', title: '統計', icon: 'chart' }, { id: 'settings', title: '設定', icon: 'settings' }];
@@ -37,7 +38,7 @@ export default function App() {
       {(tab === 'home' || tab === 'list') && <section className="card"><div className="section-heading"><h2>{tab === 'home' ? '最近交易' : '收支明細'}</h2>{tab === 'home' ? <button className="text-button" onClick={() => setTab('list')}>查看全部 <Icon name="right" size={16} /></button> : <select aria-label="交易類型篩選" value={filter} onChange={e => { setFilter(e.target.value); setPage(1); }}><option value="">全部收支</option><option value="Expense">支出</option><option value="Income">收入</option></select>}</div><TransactionList items={transactions.items} onEdit={transaction => setForm({ transaction })} />{tab === 'list' && transactions.total > 50 && <div className="pagination"><button disabled={page === 1} onClick={() => setPage(p => p - 1)}>上一頁</button><span>{page} / {Math.ceil(transactions.total / 50)}</span><button disabled={page * 50 >= transactions.total} onClick={() => setPage(p => p + 1)}>下一頁</button></div>}</section>}
       {tab === 'chart' && <MonthlyChart data={monthlyStats} />}
       </div>
-      {tab === 'settings' && <div className="card empty">分類與帳戶管理將於設定階段加入。</div>}
+      {tab === 'settings' && <Settings categories={categories} accounts={accounts} onChanged={saved} />}
     </>}<p className="page-footnote">簡單記錄，把心力留給生活。</p></main>
     <nav className="bottom-nav" aria-label="主要導覽">{tabs.map((item, index) => <div className="nav-slot" key={item.id}>{index === 2 && <button className="add-button" aria-label="新增交易" disabled={loading || !!error} onClick={() => setForm({})}><Icon name="plus" size={29} /></button>}<button aria-current={tab === item.id ? 'page' : undefined} className={tab === item.id ? 'active' : ''} onClick={() => { setTab(item.id); setPage(1); }}><Icon name={item.icon} /><span>{item.title}</span></button></div>)}</nav>
     {form && <TransactionForm transaction={form.transaction} categories={categories} accounts={accounts} onClose={() => setForm(null)} onSaved={saved} />}{toast && <div className="toast" role="status">✓ {toast}</div>}

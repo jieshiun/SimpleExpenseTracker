@@ -20,6 +20,8 @@ builder.Services.Configure<ApiBehaviorOptions>(o => o.InvalidModelStateResponseF
 builder.Services.AddProblemDetails();
 var app = builder.Build();
 app.UseExceptionHandler();
+app.UseDefaultFiles();
+app.UseStaticFiles();
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<ExpenseDbContext>();
@@ -29,6 +31,8 @@ using (var scope = app.Services.CreateScope())
 }
 app.MapGet("/api/health", () => Results.Ok(new { status = "ok" }));
 app.MapControllers();
+app.MapFallback("/api/{**path}", () => Results.Problem(statusCode: 404, title: "找不到此 API。"));
+app.MapFallbackToFile("index.html");
 app.Logger.LogInformation("Expense tracker started");
 app.Run();
 public partial class Program { }
