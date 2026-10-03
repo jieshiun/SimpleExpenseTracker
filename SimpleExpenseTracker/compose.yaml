@@ -1,0 +1,17 @@
+services:
+  app:
+    build: .
+    ports:
+      - "5080:8080"
+      - "8080:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__Default: "Data Source=/data/expense-tracker.db"
+      AllowedHosts: "*"
+      TZ: Asia/Taipei
+    volumes:
+      - expense-data:/data
+    restart: unless-stopped
+
+volumes:
+  expense-data:
