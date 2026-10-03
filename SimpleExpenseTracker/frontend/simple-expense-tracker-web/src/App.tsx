@@ -1,1 +1,37 @@
-export default function App() { return <main><h1>日常記帳</h1><p>簡單記錄，好好生活。</p></main>; }
+import { useEffect, useState } from 'react';
+import { api, type Account, type Category, type Page, type Transaction } from './api';
+import Icon, { type IconName } from './Icon';
+import TransactionForm from './TransactionForm';
+import TransactionList from './TransactionList';
+type Tab = 'home' | 'list' | 'chart' | 'settings';
+const tabs: { id: Tab; title: string; icon: IconName }[] = [{ id: 'home', title: '首頁', icon: 'home' }, { id: 'list', title: '帳目', icon: 'list' }, { id: 'chart', title: '統計', icon: 'chart' }, { id: 'settings', title: '設定', icon: 'settings' }];
+export default function App() {
+  const [tab, setTab] = useState<Tab>('home'); const [month, setMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+  const [categories, setCategories] = useState<Category[]>([]); const [accounts, setAccounts] = useState<Account[]>([]);
+  const [transactions, setTransactions] = useState<Page<Transaction>>({ items: [], total: 0, page: 1, pageSize: 50 });
+  const [page, setPage] = useState(1); const [filter, setFilter] = useState(''); const [revision, setRevision] = useState(0);
+  const [loading, setLoading] = useState(true); const [error, setError] = useState(''); const [toast, setToast] = useState('');
+  const [form, setForm] = useState<{ transaction?: Transaction } | null>(null);
+  const query = `year=${month.getFullYear()}&month=${month.getMonth() + 1}`;
+  useEffect(() => {
+    const controller = new AbortController(); setLoading(true); setError('');
+    Promise.all([api<Category[]>('/categories', { signal: controller.signal }), api<Account[]>('/accounts', { signal: controller.signal }), api<Page<Transaction>>(`/transactions?${query}&page=${tab === 'home' ? 1 : page}&pageSize=${tab === 'home' ? 5 : 50}${tab === 'list' && filter ? `&type=${filter}` : ''}`, { signal: controller.signal })])
+      .then(([c, a, t]) => { setCategories(c); setAccounts(a); setTransactions(t); })
+      .catch((e: Error) => { if (e.name !== 'AbortError') setError(e.message); }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    return () => controller.abort();
+  }, [query, page, tab, filter, revision]);
+  useEffect(() => { if (!toast) return; const timer = setTimeout(() => setToast(''), 3000); return () => clearTimeout(timer); }, [toast]);
+  function switchMonth(delta: number) { setMonth(d => new Date(d.getFullYear(), d.getMonth() + delta, 1)); setPage(1); }
+  function saved(message: string) { setForm(null); setToast(message); setRevision(v => v + 1); setPage(1); }
+  return <div className="app-shell">
+    <header className="site-header"><a href="#" onClick={e => { e.preventDefault(); setTab('home'); }} className="brand"><span className="brand-mark"><Icon name="wallet" size={23} /></span><span>日常記帳<small>把日子，記得剛剛好。</small></span></a><span className="header-note">一筆一筆，讓生活更清楚</span><button className="primary desktop-add" onClick={() => setForm({})} disabled={loading || !!error}><Icon name="plus" size={18} />記一筆</button></header>
+    <main><div className="page-heading"><div><p className="eyebrow">{tab === 'home' ? 'YOUR DAILY OVERVIEW' : tab === 'list' ? 'LIFE IN NUMBERS' : tab === 'chart' ? 'A LITTLE MORE CLARITY' : 'MAKE IT YOURS'}</p><h1>{tab === 'home' ? '每一筆，都是生活。' : tab === 'list' ? '我的帳目' : tab === 'chart' ? '收支統計' : '設定'}</h1><p className="muted">{tab === 'home' ? '從小小的記錄，慢慢掌握自己的步調。' : tab === 'list' ? '日常的收入與花費，都好好記在這裡。' : tab === 'chart' ? '看看這個月，錢都花在哪裡。' : '打造適合自己的記帳習慣。'}</p></div>{tab !== 'settings' && <div className="month-switch"><button aria-label="上一個月" onClick={() => switchMonth(-1)}><Icon name="left" size={18} /></button><span>{month.getFullYear()} 年 {month.getMonth() + 1} 月</span><button aria-label="下一個月" onClick={() => switchMonth(1)}><Icon name="right" size={18} /></button></div>}</div>
+    {error ? <div role="alert" className="error">{error}<button onClick={() => setRevision(v => v + 1)}>重新載入</button></div> : loading ? <div className="loading" role="status">正在整理你的帳目…</div> : <>
+      {(tab === 'home' || tab === 'list') && <section className="card"><div className="section-heading"><h2>{tab === 'home' ? '最近交易' : '收支明細'}</h2>{tab === 'home' ? <button className="text-button" onClick={() => setTab('list')}>查看全部 <Icon name="right" size={16} /></button> : <select aria-label="交易類型篩選" value={filter} onChange={e => { setFilter(e.target.value); setPage(1); }}><option value="">全部收支</option><option value="Expense">支出</option><option value="Income">收入</option></select>}</div><TransactionList items={transactions.items} onEdit={transaction => setForm({ transaction })} />{tab === 'list' && transactions.total > 50 && <div className="pagination"><button disabled={page === 1} onClick={() => setPage(p => p - 1)}>上一頁</button><span>{page} / {Math.ceil(transactions.total / 50)}</span><button disabled={page * 50 >= transactions.total} onClick={() => setPage(p => p + 1)}>下一頁</button></div>}</section>}
+      {tab === 'chart' && <div className="card empty">收支圖表將於統計階段加入。</div>}
+      {tab === 'settings' && <div className="card empty">分類與帳戶管理將於設定階段加入。</div>}
+    </>}<p className="page-footnote">簡單記錄，把心力留給生活。</p></main>
+    <nav className="bottom-nav" aria-label="主要導覽">{tabs.map((item, index) => <div className="nav-slot" key={item.id}>{index === 2 && <button className="add-button" aria-label="新增交易" disabled={loading || !!error} onClick={() => setForm({})}><Icon name="plus" size={29} /></button>}<button aria-current={tab === item.id ? 'page' : undefined} className={tab === item.id ? 'active' : ''} onClick={() => { setTab(item.id); setPage(1); }}><Icon name={item.icon} /><span>{item.title}</span></button></div>)}</nav>
+    {form && <TransactionForm transaction={form.transaction} categories={categories} accounts={accounts} onClose={() => setForm(null)} onSaved={saved} />}{toast && <div className="toast" role="status">✓ {toast}</div>}
+  </div>;
+}
