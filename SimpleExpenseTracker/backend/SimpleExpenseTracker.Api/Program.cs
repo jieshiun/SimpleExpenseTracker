@@ -11,6 +11,8 @@ builder.Logging.AddConsole();
 builder.Logging.AddFilter("Microsoft.AspNetCore.Diagnostics.ExceptionHandlerMiddleware", LogLevel.None);
 builder.Services.AddDbContext<ExpenseDbContext>(o => o.UseSqlite(builder.Configuration.GetConnectionString("Default") ?? "Data Source=expense-tracker.db"));
 builder.Services.AddScoped<IExpenseService, ExpenseService>();
+builder.Services.AddScoped<IStatisticsService, StatisticsService>();
+builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddExceptionHandler<ApiExceptionHandler>();
 builder.Services.AddControllers().AddJsonOptions(o => o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter(allowIntegerValues: false)));
 builder.Services.Configure<ApiBehaviorOptions>(o => o.InvalidModelStateResponseFactory = context =>
