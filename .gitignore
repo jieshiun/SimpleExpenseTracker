@@ -1,0 +1,11 @@
+.tools/
+**/bin/
+**/obj/
+**/node_modules/
+**/dist/
+**/coverage/
+**/TestResults/
+*.db
+*.db-shm
+*.db-wal
+.DS_Store
