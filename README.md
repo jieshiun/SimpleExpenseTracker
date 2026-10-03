@@ -8,7 +8,7 @@
 
 ## 快速開始
 
-所有專案程式碼與以下命令的工作目錄均為 `SimpleExpenseTracker/`。
+專案程式碼位於 `SimpleExpenseTracker/`。以下兩種啟動方式擇一使用，命令皆從 repository 根目錄開始。
 
 ### Docker Compose
 
@@ -21,7 +21,7 @@ docker compose up -d --build
 
 開啟 [http://localhost:5080](http://localhost:5080)，亦可使用 [http://localhost:8080](http://localhost:8080)。前後端已整合，SQLite 儲存在具名 volume。
 
-目前 Docker 設定已加入本機工作區，但尚未納入 Git；若 clone 後未看到 `compose.yaml`，請先使用下方原生開發方式。容器建置／啟動尚未實際驗證。
+Dockerfile、Compose 與 .dockerignore 已納入儲存庫，可在 clone 後使用上述命令。容器建置／啟動尚未實際驗證；既有測試結果來自原生 .NET／Node.js 環境。
 
 ### 本機開發
 
@@ -45,6 +45,7 @@ pnpm dev
 
 ## 文件
 
+- [開發規格書](SimpleExpenseTracker/docs/SPECIFICATION.md)：原始完整規格，包含資料模型、API、開發階段與 MVP 驗收條件。
 - [完整啟動、Docker、資料備份、PWA 發佈與 API 說明](SimpleExpenseTracker/README.md)
 - [驗收紀錄](SimpleExpenseTracker/docs/VALIDATION.md)：既有紀錄為 15 個後端、7 個前端測試通過。
 

@@ -2,6 +2,8 @@
 
 手機優先的個人記帳 App，使用 React / TypeScript 與 ASP.NET Core Web API，資料永久儲存在本機 SQLite。目標功能為收支記錄、分類與帳戶管理及每月統計，不包含登入、雲端同步或帳戶餘額計算。
 
+原始需求請見 [完整開發規格書](docs/SPECIFICATION.md)，保留最初提供的 40 節規格內容；目前實作與啟動方式以本 README 為準，測試結果見 [驗收紀錄](docs/VALIDATION.md)。
+
 ## 功能與開發狀態
 
 目前功能包含交易新增／編輯／確認刪除、依日期分組的帳目、月份與收支類型篩選、分頁、分類新增／修改／停用／排序、帳戶管理、每月摘要與統計圖表。首頁最近交易顯示所選月份的最新 5 筆；趨勢固定呈現伺服器目前月份往前共 6 個月，不隨頁面選定月份改變。
@@ -13,7 +15,7 @@
 - Phase 5：分類／帳戶管理、PWA、響應式版面與狀態處理已完成。
 - Phase 6：完成重構、15 個後端測試、7 個前端測試及 7 個 MVP 情境驗收。
 
-最新工作區另包含 `Dockerfile`、`compose.yaml` 與 `.dockerignore`，目前尚未納入 Git。Docker 說明依這些設定檔整理，尚未實際建置或啟動驗證。
+儲存庫已包含 `Dockerfile`、`compose.yaml` 與 `.dockerignore`，提供前後端整合的容器建置及 SQLite 資料保存設定。Docker 說明依這些設定檔整理，尚未實際建置或啟動驗證。
 
 ## Screenshots
 
@@ -69,7 +71,7 @@ Dockerfile 分三階段建置：Node.js 24 + pnpm 11 編譯前端、.NET 8 SDK �
 
 目前兩個 port 映射沒有綁定 loopback，Docker 可能將服務提供給主機其他網路介面。App 沒有登入驗證；若只需本機使用，可將映射改成 `127.0.0.1:5080:8080`，並移除不需要的第二個映射。`AllowedHosts` 是 Host 過濾設定，不是登入或存取權限控制。
 
-若遇到 port 已被占用，請先停止使用 5080 的本機 API，或調整 Compose 的主機 port。`docker compose config` 可檢查 Compose 設定；本次文件更新環境找不到 `docker` 指令，因此未執行容器建置或啟動測試。
+若遇到 port 已被占用，請先停止使用 5080 的本機 API，或調整 Compose 的主機 port。可先執行 `docker compose config` 檢查設定，再執行 `docker compose up -d --build`。目前尚無容器建置與啟動的驗證紀錄。
 
 ### Docker 資料與備份
 
@@ -225,7 +227,7 @@ cd frontend/simple-expense-tracker-web
 pnpm test
 ```
 
-API 測試使用獨立暫存 SQLite 檔，不會碰觸開發資料。既有 MVP 驗收紀錄：15 個後端測試、7 個前端測試通過，後端建置零警告／零錯誤。本次僅更新文件，未重新執行測試；這些結果不包含新加入的 Docker 設定。
+API 測試使用獨立暫存 SQLite 檔，不會碰觸開發資料。2026/10/03 的原生環境 MVP 驗收紀錄：15 個後端測試、7 個前端測試通過，後端建置零警告／零錯誤。這些結果不包含 Docker 容器建置與啟動驗證。
 
 已透過 Edge 瀏覽器驗證新增收入／支出、修改、取消刪除、確認刪除、摘要更新、分類百分比、設定管理、PWA 靜態快取、離線錯誤與重新連線。375×667、390×844、412×915 與 1200×900 均無主要畫面水平溢位。詳細紀錄見 [驗收紀錄](docs/VALIDATION.md)。
 
