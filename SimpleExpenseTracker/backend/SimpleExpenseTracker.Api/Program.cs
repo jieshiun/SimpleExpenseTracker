@@ -1,10 +1,20 @@
 using System.Text.Json.Serialization;
 using Microsoft.EntityFrameworkCore;
 using SimpleExpenseTracker.Infrastructure;
+using SimpleExpenseTracker.Application;
+using SimpleExpenseTracker.Api;
+using Microsoft.AspNetCore.Mvc;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Logging.ClearProviders();
+builder.Logging.AddConsole();
+builder.Logging.AddFilter("Microsoft.AspNetCore.Diagnostics.ExceptionHandlerMiddleware", LogLevel.None);
 builder.Services.AddDbContext<ExpenseDbContext>(o => o.UseSqlite(builder.Configuration.GetConnectionString("Default") ?? "Data Source=expense-tracker.db"));
-builder.Services.AddControllers().AddJsonOptions(o => o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
+builder.Services.AddScoped<IExpenseService, ExpenseService>();
+builder.Services.AddExceptionHandler<ApiExceptionHandler>();
+builder.Services.AddControllers().AddJsonOptions(o => o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter(allowIntegerValues: false)));
+builder.Services.Configure<ApiBehaviorOptions>(o => o.InvalidModelStateResponseFactory = context =>
+    new BadRequestObjectResult(new ProblemDetails { Status = 400, Title = "輸入資料格式不正確，請檢查金額、名稱、日期及必填欄位。", Extensions = { ["traceId"] = context.HttpContext.TraceIdentifier } }));
 builder.Services.AddProblemDetails();
 var app = builder.Build();
 app.UseExceptionHandler();
