@@ -16,7 +16,11 @@ builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddExceptionHandler<ApiExceptionHandler>();
 builder.Services.AddControllers().AddJsonOptions(o => o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter(allowIntegerValues: false)));
 builder.Services.Configure<ApiBehaviorOptions>(o => o.InvalidModelStateResponseFactory = context =>
-    new BadRequestObjectResult(new ProblemDetails { Status = 400, Title = "輸入資料格式不正確，請檢查金額、名稱、日期及必填欄位。", Extensions = { ["traceId"] = context.HttpContext.TraceIdentifier } }));
+{
+    context.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("ApiValidation")
+        .LogWarning("API validation returned 400; trace {Trace}", context.HttpContext.TraceIdentifier);
+    return new BadRequestObjectResult(new ProblemDetails { Status = 400, Title = "輸入資料格式不正確，請檢查金額、名稱、日期及必填欄位。", Extensions = { ["traceId"] = context.HttpContext.TraceIdentifier } });
+});
 builder.Services.AddProblemDetails();
 var app = builder.Build();
 app.UseExceptionHandler();

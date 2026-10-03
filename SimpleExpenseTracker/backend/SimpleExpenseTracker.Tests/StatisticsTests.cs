@@ -4,9 +4,23 @@ using SimpleExpenseTracker.Application;
 using SimpleExpenseTracker.Domain;
 using Xunit;
 namespace SimpleExpenseTracker.Tests;
-public class StatisticsTests : ApiTests
+public class StatisticsTests : ApiTestBase
 {
-    [Fact] public async Task MonthlySummaryAndCategoryPercentagesReflectEditsAndDeletes()
+    [Fact]
+    public async Task MultipleCategoriesRoundToOneHundredPercentAndEmptyMonthsAreZero()
+    {
+        var input = await Input(amount: 100);
+        var categories = await Client.GetFromJsonAsync<CategoryDto[]>("/api/categories", Json);
+        foreach (var category in categories!.Where(c => c.Type == TransactionType.Expense).Take(3))
+            await Create(input with { CategoryId = category.Id });
+        var stats = await Client.GetFromJsonAsync<CategoryStatisticDto[]>("/api/statistics/categories?year=2026&month=10", Json);
+        Assert.NotNull(stats); Assert.Equal(3, stats.Length);
+        Assert.InRange(stats.Sum(s => s.Percentage), 99.99m, 100.01m);
+        Assert.Equal(new SummaryDto(0, 0, 0), await Client.GetFromJsonAsync<SummaryDto>("/api/dashboard/summary?year=2025&month=1", Json));
+        Assert.Empty((await Client.GetFromJsonAsync<CategoryStatisticDto[]>("/api/statistics/categories?year=2025&month=1", Json))!);
+    }
+    [Fact]
+    public async Task MonthlySummaryAndCategoryPercentagesReflectEditsAndDeletes()
     {
         await Create(await Input(TransactionType.Income, 65000));
         var input = await Input(amount: 28520);
@@ -22,7 +36,8 @@ public class StatisticsTests : ApiTests
         await Client.DeleteAsync($"/api/transactions/{expense.Id}");
         Assert.Equal(0.10m, (await Client.GetFromJsonAsync<SummaryDto>("/api/dashboard/summary?year=2026&month=10", Json))!.Expense);
     }
-    [Fact] public async Task TrendIncludesEmptyMonthsAndCurrentMonth()
+    [Fact]
+    public async Task TrendIncludesEmptyMonthsAndCurrentMonth()
     {
         var date = DateTime.Today.ToString("yyyy-MM-dd");
         await Create(await Input(amount: 350, date: date));

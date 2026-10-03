@@ -16,12 +16,12 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
     protected override void ConfigureWebHost(IWebHostBuilder builder) => builder.ConfigureAppConfiguration((_, config) => config.AddInMemoryCollection(new Dictionary<string, string?> { ["ConnectionStrings:Default"] = $"Data Source={file};Pooling=False" }));
     protected override void Dispose(bool disposing) { base.Dispose(disposing); if (File.Exists(file)) File.Delete(file); }
 }
-public class ApiTests : IDisposable
+public abstract class ApiTestBase : IDisposable
 {
     private readonly ApiFactory factory = new();
     protected readonly HttpClient Client;
     protected static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };
-    public ApiTests() { Client = factory.CreateClient(); }
+    protected ApiTestBase() { Client = factory.CreateClient(); }
     public void Dispose() { Client.Dispose(); factory.Dispose(); GC.SuppressFinalize(this); }
     protected async Task<TransactionInput> Input(TransactionType type = TransactionType.Expense, decimal amount = 350, string date = "2026-10-03")
     {
@@ -35,8 +35,13 @@ public class ApiTests : IDisposable
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         return (await response.Content.ReadFromJsonAsync<TransactionDto>(Json))!;
     }
+}
+
+public class ApiTests : ApiTestBase
+{
     [Theory]
-    [InlineData(TransactionType.Expense)] [InlineData(TransactionType.Income)]
+    [InlineData(TransactionType.Expense)]
+    [InlineData(TransactionType.Income)]
     public async Task CreateUpdateDelete(TransactionType type)
     {
         var input = await Input(type);
@@ -47,13 +52,15 @@ public class ApiTests : IDisposable
         Assert.Equal(HttpStatusCode.NoContent, (await Client.DeleteAsync($"/api/transactions/{item.Id}")).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await Client.GetAsync($"/api/transactions/{item.Id}")).StatusCode);
     }
-    [Fact] public async Task RejectInvalidValues()
+    [Fact]
+    public async Task RejectInvalidValues()
     {
         var input = await Input();
         foreach (var invalid in new[] { input with { Amount = 0 }, input with { Amount = -1 }, input with { Amount = .001m }, input with { Type = TransactionType.Income }, input with { CategoryId = 999999 }, input with { AccountId = 999999 }, input with { TransactionDate = null } })
             Assert.Equal(HttpStatusCode.BadRequest, (await Client.PostAsJsonAsync("/api/transactions", invalid, Json)).StatusCode);
     }
-    [Fact] public async Task UsedReferencesAreDisabledAndHistoryRemainsEditable()
+    [Fact]
+    public async Task UsedReferencesAreDisabledAndHistoryRemainsEditable()
     {
         var input = await Input(); var item = await Create(input);
         await Client.DeleteAsync($"/api/categories/{input.CategoryId}");
@@ -63,7 +70,8 @@ public class ApiTests : IDisposable
         Assert.Equal(HttpStatusCode.BadRequest, (await Client.PostAsJsonAsync("/api/transactions", input, Json)).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await Client.PutAsJsonAsync($"/api/transactions/{item.Id}", input with { Note = "修改備註" }, Json)).StatusCode);
     }
-    [Fact] public async Task FiltersAndPaginationAreValidated()
+    [Fact]
+    public async Task FiltersAndPaginationAreValidated()
     {
         await Create(await Input());
         var result = await Client.GetFromJsonAsync<PageDto<TransactionDto>>("/api/transactions?year=2026&month=10&pageSize=1", Json);

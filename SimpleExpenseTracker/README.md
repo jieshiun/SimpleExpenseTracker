@@ -8,12 +8,16 @@
 - Phase 2：交易／分類／帳戶 API、驗證、API 測試，已驗證並提交。
 - Phase 3：手機記帳流程、帳目清單、新增／編輯／刪除，已驗證並提交。
 - Phase 4：每月摘要、分類統計、六個月趨勢與圖表已實作。已使用系統安裝的 .NET 8.0.425 完成建置與後端測試，前端建置與測試亦通過。
-- Phase 5：設定管理畫面與 PWA 尚未實作。
-- Phase 6：完整驗收、重構與最終測試尚未完成。
+- Phase 5：分類／帳戶管理、PWA、響應式版面與狀態處理已完成。
+- Phase 6：完成重構、15 個後端測試、7 個前端測試及 7 個 MVP 情境驗收。
 
 ## Screenshots
 
-預留最終版首頁、記帳表單與統計截圖位置。目前的開發中手機統計截圖為 `phase4-mobile.png`。
+以下截圖使用獨立驗收資料庫的示範資料，正式資料庫不會加入示範交易。
+
+![桌面首頁](docs/screenshots/home-desktop.png)
+
+[手機首頁](docs/screenshots/home-mobile.png) · [手機交易編輯](docs/screenshots/transaction-mobile.png) · [手機統計](docs/screenshots/statistics-mobile.png)
 
 ## Technology Stack
 
@@ -27,7 +31,7 @@
 - Node.js 22 或以上、pnpm 11（可使用 `npm install -g pnpm@11`）
 - Git
 
-此環境原本只有 .NET 10，因此另將 .NET 8 安裝於 repository 根目錄的 `.tools/dotnet`，未納入 Git。一般開發者安裝 .NET 8 後直接使用以下命令。
+已使用系統 .NET SDK 8.0.425、ASP.NET Core 8.0.31 與 Node.js 24 驗證。請在此目錄執行 `dotnet --version`，確認 global.json 選到 8.0 SDK。
 
 ## Backend 啟動
 
@@ -40,13 +44,6 @@ dotnet run --project backend/SimpleExpenseTracker.Api --urls http://127.0.0.1:50
 ```
 
 第一次啟動自動套用 Migration、建立 `backend/SimpleExpenseTracker.Api/expense-tracker.db` 並加入 16 個分類及 3 個帳戶。重啟不會新增重複資料。健康檢查：`GET http://127.0.0.1:5080/api/health`。
-
-本機專用 SDK 的 PowerShell 啟動方式：
-
-```powershell
-$env:DOTNET_ROOT = (Resolve-Path ../.tools/dotnet).Path
-& "$env:DOTNET_ROOT/dotnet.exe" run --project backend/SimpleExpenseTracker.Api --urls http://127.0.0.1:5080
-```
 
 ## Frontend 啟動
 
@@ -65,7 +62,24 @@ pnpm build
 pnpm test
 ```
 
-目前 production build 的 `dist` 需要由具備 `/api` 反向代理的同源伺服器提供，尚未加入正式發佈設定。
+## PWA 與正式發佈
+
+先執行前端 `pnpm build`，它會產生靜態資源與版本化 Service Worker。再從本 README 所在目錄執行：
+
+```sh
+dotnet publish backend/SimpleExpenseTracker.Api -c Release -o publish
+cd publish
+dotnet SimpleExpenseTracker.Api.dll --urls http://127.0.0.1:5080
+```
+
+發佈流程自動將 frontend/dist 複製到 wwwroot；開啟 `http://127.0.0.1:5080` 即可使用整合版前後端，不需要另外啟動 Vite。若未先建置前端，publish 會明確失敗。
+
+- Service Worker 僅於 production build 註冊，開發模式不註冊。
+- 提供 192／512px PNG Icon、Apple Touch Icon 與 Manifest。支援的瀏覽器可從選單安裝；iOS Safari 使用「分享 → 加入主畫面」。
+- 安裝與 Service Worker 需要安全來源：電腦本機 localhost 可用，手機連線需透過具受信任憑證的 HTTPS 網址，並設定 `AllowedHosts` 為使用的主機名稱。
+- App 安裝後仍需要連到後端；資料儲存在後端 SQLite，不是在手機內獨立建立帳本。離線只快取程式外殼，顯示無法連線，不接受或排程交易寫入。
+- `/api` 回應不進 Service Worker 快取。靜態資源更新在舊 App 視窗關閉後啟用，避免混用新舊版本。
+- 正式使用建議將 `ConnectionStrings__Default` 指向發佈目錄外的固定絕對路徑，以免更新發佈檔時影響資料。
 
 ## Database Migration
 
@@ -137,9 +151,11 @@ cd frontend/simple-expense-tracker-web
 pnpm test
 ```
 
-API 測試使用獨立暫存 SQLite 檔，不會碰觸開發資料。Phase 3 曾完整通過 6 個後端測試、4 個前端測試，並以 Edge 實際完成 390px 手機新增／編輯／刪除。
+API 測試使用獨立暫存 SQLite 檔，不會碰觸開發資料。最終結果：15 個後端測試、7 個前端測試通過，後端建置零警告／零錯誤。
 
-2026/10/03 的 Phase 4 測試遭 Windows Smart App Control 封鎖 `SimpleExpenseTracker.Tests.dll`（CodeIntegrity Event 3077、錯誤 0x800711C7）。此時 `dotnet test` 可能回傳 exit code 0，但顯示未探索到任何測試，**不表示通過**。需在允許此開發程式碼的環境重新執行；未修改作業系統安全政策。後續安裝系統 .NET 8 SDK 8.0.425 後已重新成功執行全部 13 個測試（含 5 個繼承重複案例），先前阻擋已解除。
+已透過 Edge 瀏覽器驗證新增收入／支出、修改、取消刪除、確認刪除、摘要更新、分類百分比、設定管理、PWA 靜態快取、離線錯誤與重新連線。375×667、390×844、412×915 與 1200×900 均無主要畫面水平溢位。詳細紀錄見 [驗收紀錄](docs/VALIDATION.md)。
+
+曾出現 Windows Smart App Control 阻擋測試 DLL；安裝系統 .NET 8 SDK 後已成功重新執行全部測試。如果環境顯示「未探索到任何測試」，即使 exit code 為 0 也不能視為通過。
 
 ## Development Notes
 
@@ -150,4 +166,3 @@ API 測試使用獨立暫存 SQLite 檔，不會碰觸開發資料。Phase 3 曾
 - InitialBalance 保留但不參與摘要；摘要結餘只代表當月收入減支出。
 - API 無登入，預設僅供本機個人開發使用；尚未建立公開服務部署。
 - Git 未設定使用者作者，因此階段提交使用 `Codex <codex@localhost>`，未修改全域 Git 設定。
-

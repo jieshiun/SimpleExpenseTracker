@@ -1,0 +1,11 @@
+**/bin/
+**/obj/
+**/node_modules/
+**/dist/
+**/coverage/
+**/TestResults/
+*.tsbuildinfo
+*.db
+*.db-shm
+*.db-wal
+publish/
