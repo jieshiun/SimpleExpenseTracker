@@ -1,12 +1,14 @@
 # 日常記帳 SimpleExpenseTracker
 
-手機優先的個人記帳 App，使用 React / TypeScript 與 ASP.NET Core Web API，資料永久儲存在本機 SQLite。目標功能為收支記錄、分類與帳戶管理及每月統計，不包含登入、雲端同步或帳戶餘額計算。
+手機優先的家庭共同記帳 App，使用 React / TypeScript 與 ASP.NET Core Web API，資料永久儲存在本機 SQLite。目標功能為收支記錄、分類與帳戶管理及每月統計，不包含登入、私人帳目或帳戶餘額計算。你與家人連到同一個後端，即可共用全部收支；操作時選擇成員作為紀錄標記。
 
 原始需求請見 [完整開發規格書](docs/SPECIFICATION.md)，保留最初提供的 40 節規格內容；目前實作與啟動方式以本 README 為準，測試結果見 [驗收紀錄](docs/VALIDATION.md)。
 
+家庭版增補規格與使用方式請見 [家庭共同記帳](docs/FAMILY.md)。初次使用先到設定修改「成員一／成員二」，再在各自手機選擇常用操作人。
+
 ## 功能與開發狀態
 
-目前功能包含交易新增／編輯／確認刪除、依日期分組的帳目、月份與收支類型篩選、分頁、分類新增／修改／停用／排序、帳戶管理、每月摘要與統計圖表。首頁最近交易顯示所選月份的最新 5 筆；趨勢固定呈現伺服器目前月份往前共 6 個月，不隨頁面選定月份改變。
+目前功能包含交易新增／編輯／確認刪除／復原、依日期分組的帳目、月份與收支類型篩選、分頁、分類新增／修改／停用／排序、帳戶管理、每月摘要與統計圖表。首頁最近交易顯示所選月份的最新 5 筆；趨勢固定呈現伺服器目前月份往前共 6 個月，不隨頁面選定月份改變。
 
 - Phase 1：Solution、分層架構、EF Core InitialCreate、預設資料，已驗證並提交。
 - Phase 2：交易／分類／帳戶 API、驗證、API 測試，已驗證並提交。
@@ -15,13 +17,19 @@
 - Phase 5：分類／帳戶管理、PWA、響應式版面與狀態處理已完成。
 - Phase 6：完成重構、15 個後端測試、7 個前端測試及 7 個 MVP 情境驗收。
 
+家庭版已加入成員管理、裝置常用操作人、收支歸屬篩選、建立與最後操作紀錄、樂觀鎖定、重送防重複與已刪除帳目復原。家庭共同金額只計算一次。既有帳目保留，歸屬顯示「待確認」。
+
 儲存庫已包含 `Dockerfile`、`compose.yaml` 與 `.dockerignore`，提供前後端整合的容器建置及 SQLite 資料保存設定。Docker 說明依這些設定檔整理，尚未實際建置或啟動驗證。
 
 ## Screenshots
 
 以下截圖使用獨立驗收資料庫的示範資料，正式資料庫不會加入示範交易。
 
-![桌面首頁](docs/screenshots/home-desktop.png)
+![家庭版桌面首頁](docs/screenshots/family-desktop.png)
+
+[家庭版手機首頁](docs/screenshots/family-mobile.png)
+
+以下為原始個人版驗收截圖：
 
 [手機首頁](docs/screenshots/home-mobile.png) · [手機交易編輯](docs/screenshots/transaction-mobile.png) · [手機統計](docs/screenshots/statistics-mobile.png)
 
@@ -88,7 +96,7 @@ docker compose cp app:/data/. $backupDir
 docker compose start app
 ```
 
-備份包含私人帳目，請勿加入 Git。更換 Compose 專案名稱或目錄可能建立不同名稱的 volume；更新部署時應維持相同的 Compose 專案名稱。
+備份包含家庭帳目，請勿加入 Git。更換 Compose 專案名稱或目錄可能建立不同名稱的 volume；更新部署時應維持相同的 Compose 專案名稱。
 
 ## Backend 啟動
 
@@ -100,7 +108,7 @@ dotnet build
 dotnet run --project backend/SimpleExpenseTracker.Api --urls http://127.0.0.1:5080
 ```
 
-第一次啟動自動套用 Migration、建立 `backend/SimpleExpenseTracker.Api/expense-tracker.db` 並加入 16 個分類及 3 個帳戶。重啟不會新增重複資料。健康檢查：`GET http://127.0.0.1:5080/api/health`。
+第一次啟動自動套用 Migration、建立 `backend/SimpleExpenseTracker.Api/expense-tracker.db` 並加入 16 個分類、3 個帳戶及 2 個家庭成員。重啟不會新增重複資料。健康檢查：`GET http://127.0.0.1:5080/api/health`。
 
 預設資料僅在分類與帳戶資料表皆為空時建立，不會逐項補回使用者刪除的預設項目。啟動紀錄中的 migration 訊息可確認資料庫是否正常初始化。
 
@@ -155,6 +163,8 @@ dotnet ef database update --project backend/SimpleExpenseTracker.Infrastructure 
 dotnet ef migrations add MigrationName --project backend/SimpleExpenseTracker.Infrastructure --startup-project backend/SimpleExpenseTracker.Api
 ```
 
+家庭版升級會保留原帳目並標示為「歸屬待確認」，版本初始化為 1。升級前先停止服務並備份資料庫（含存在的 WAL／SHM 檔）。詳見 [家庭版升級規則](docs/FAMILY.md)。
+
 可用 `ConnectionStrings__Default` 環境變數指定絕對資料庫路徑，例如 `Data Source=C:/data/expense-tracker.db`。預設相對路徑以 API 工作目錄為準。備份時先停止後端，再複製資料庫；不要刪除資料庫以「重置」程式。
 
 手動執行 EF CLI 與使用 `dotnet run` 時，請確認工作目錄與連線字串指向同一份資料庫，避免在另一個目錄誤建空白帳本。可先在 PowerShell 設定：
@@ -173,7 +183,7 @@ SimpleExpenseTracker/
   backend/
     SimpleExpenseTracker.Api/              HTTP controllers、DI、錯誤處理
     SimpleExpenseTracker.Application/      DTO、服務介面
-    SimpleExpenseTracker.Domain/           Transaction、Category、Account
+    SimpleExpenseTracker.Domain/           Transaction、HouseholdMember、Category、Account
     SimpleExpenseTracker.Infrastructure/   DbContext、Migration、服務實作
     SimpleExpenseTracker.Tests/            SQLite 與 API 整合測試
   frontend/simple-expense-tracker-web/     React App
@@ -194,6 +204,9 @@ SimpleExpenseTracker/
 | `/api/health` | GET：健康檢查 |
 | `/api/transactions` | GET 分頁查詢、POST 新增 |
 | `/api/transactions/{id}` | GET、PUT、DELETE |
+| `/api/transactions/{id}/restore` | POST：復原，需操作人與版本 |
+| `/api/members` | GET（含停用）、POST |
+| `/api/members/{id}` | PUT 名稱／啟用狀態 |
 | `/api/categories` | GET 全部分類（含停用）、POST |
 | `/api/categories/{id}` | GET、PUT、DELETE |
 | `/api/accounts` | GET 全部帳戶（含停用）、POST |
@@ -202,9 +215,9 @@ SimpleExpenseTracker/
 | `/api/statistics/categories?year=2026&month=10&type=Expense` | GET 分類金額與百分比 |
 | `/api/statistics/monthly?months=6` | GET 截至伺服器目前月份的連續月份統計，含零交易月份 |
 
-交易查詢接受 `year, month, type, categoryId, accountId, page, pageSize`；指定 month 時必須提供 year。分頁預設 1／50，pageSize 最大 100。回傳 `{ items, total, page, pageSize }`，排序為日期、建立時間及 ID 遞減。
+交易查詢接受 `year, month, type, categoryId, accountId, ownership, ownerMemberId, deleted, page, pageSize`；指定 month 時必須提供 year。分頁預設 1／50，pageSize 最大 100。回傳 `{ items, total, page, pageSize }`，排序為日期、建立時間及 ID 遞減。
 
-交易 JSON 範例（分類／帳戶 ID 需先 GET 查詢，不可假設固定值）：
+交易 JSON 範例（分類／帳戶／操作人成員 ID 需先 GET 查詢，不可假設固定值；每筆新交易產生不同 UUID，重試同一筆沿用）：
 
 ```json
 {
@@ -213,11 +226,17 @@ SimpleExpenseTracker/
   "categoryId": 1,
   "accountId": 3,
   "transactionDate": "2026-10-03",
-  "note": "午餐"
+  "note": "午餐",
+  "ownership": "Shared",
+  "ownerMemberId": null,
+  "operatorId": 1,
+  "clientRequestId": "11111111-1111-4111-8111-111111111111"
 }
 ```
 
-成功使用 200／201／204；錯誤使用 400／404／500 與 `{ status, title, traceId }` ProblemDetails 格式。
+更新交易需帶目前 `version`；刪除及復原的 JSON body 為 `{ "operatorId": 1, "version": 1 }`，實際數值取自成員與交易查詢。刪除改為可復原的軟刪除。
+
+成功使用 200／201／204；錯誤使用 400／404／409／500 與 `{ status, title, traceId }` ProblemDetails 格式。
 
 ## Testing
 
@@ -226,6 +245,8 @@ dotnet test
 cd frontend/simple-expense-tracker-web
 pnpm test
 ```
+
+家庭版（2026/10/04）已通過 21 個後端測試、10 個前端測試及雙裝置瀏覽器驗收，含並行修改、重試防重複、刪除復原與舊資料升級。Release 建置成功，但本機 Windows 應用程式控制封鎖 Release DLL 執行；瀏覽器驗收使用可正常執行的 Debug 整合版。
 
 API 測試使用獨立暫存 SQLite 檔，不會碰觸開發資料。2026/10/03 的原生環境 MVP 驗收紀錄：15 個後端測試、7 個前端測試通過，後端建置零警告／零錯誤。這些結果不包含 Docker 容器建置與啟動驗證。
 
@@ -240,5 +261,5 @@ API 測試使用獨立暫存 SQLite 檔，不會碰觸開發資料。2026/10/03 
 - 類別與帳戶已被使用時，DELETE 改為停用並保留歷史關聯；未被使用則真正刪除。既有交易可保留原停用項目，新交易不可選擇。
 - 已被交易使用的分類不得修改收入／支出類型，避免破壞歷史一致性。
 - InitialBalance 保留但不參與摘要；摘要結餘只代表當月收入減支出。
-- API 無登入，預設僅供本機個人開發使用；尚未建立公開服務部署。
+- API 無登入，家庭成員標記不是身分驗證。家庭裝置需連到同一服務；尚未建立公開服務部署。
 - Git 未設定使用者作者，因此階段提交使用 `Codex <codex@localhost>`，未修改全域 Git 設定。

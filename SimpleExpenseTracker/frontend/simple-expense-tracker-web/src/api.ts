@@ -15,7 +15,26 @@ export interface Account {
   initialBalance: number;
   isActive: boolean;
 }
+export interface Member {
+  id: number;
+  name: string;
+  isActive: boolean;
+}
+export type Ownership = "Unknown" | "Personal" | "Shared";
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public status: number,
+  ) {
+    super(message);
+  }
+}
 export interface TransactionInput {
+  ownership: Ownership;
+  ownerMemberId: number | null;
+  operatorId?: number;
+  version?: number;
+  clientRequestId?: string;
   type: TransactionType;
   amount: number;
   categoryId: number;
@@ -28,6 +47,13 @@ export interface Transaction extends TransactionInput {
   categoryName: string;
   categoryIcon: string;
   accountName: string;
+  ownerMemberName: string | null;
+  createdByName: string | null;
+  updatedByName: string | null;
+  deletedByName: string | null;
+  deletedAt: string | null;
+  isDeleted: boolean;
+  version: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -50,7 +76,7 @@ export async function api<T>(
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError")
       throw error;
-    throw new Error("無法連線，請確認網路與記帳服務已啟動。");
+    throw new ApiError("無法連線，請確認網路與記帳服務已啟動。", 0);
   }
   if (!response.ok) {
     const problem: unknown = await response.json().catch(() => null);
@@ -61,7 +87,7 @@ export async function api<T>(
       typeof problem.title === "string"
         ? problem.title
         : "操作未完成，請稍後再試。";
-    throw new Error(title);
+    throw new ApiError(title, response.status);
   }
   return response.status === 204
     ? (undefined as T)

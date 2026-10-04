@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   api,
+  type Member,
   type Account,
   type Category,
   type Page,
@@ -10,6 +11,8 @@ import Icon, { type IconName } from "./Icon";
 import TransactionForm from "./TransactionForm";
 import TransactionList from "./TransactionList";
 import Settings from "./Settings";
+import FamilySettings from "./FamilySettings";
+import { familyQuery, rememberedActor, rememberActor } from "./family";
 import {
   SummaryCards,
   CategoryChart,
@@ -26,6 +29,13 @@ const tabs: { id: Tab; title: string; icon: IconName }[] = [
   { id: "settings", title: "設定", icon: "settings" },
 ];
 export default function App() {
+  const [members, setMembers] = useState<Member[]>([]);
+  const [actor, setActor] = useState(rememberedActor);
+  const [ownership, setOwnership] = useState("");
+  const [deleted, setDeleted] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const validActor = members.some((m) => m.id === actor && m.isActive);
+  const family = familyQuery(ownership);
   const [tab, setTab] = useState<Tab>("home");
   const [month, setMonth] = useState(
     () => new Date(new Date().getFullYear(), new Date().getMonth(), 1),
@@ -52,17 +62,18 @@ export default function App() {
   });
   const [categoryStats, setCategoryStats] = useState<CategoryStat[]>([]);
   const [monthlyStats, setMonthlyStats] = useState<MonthlyStat[]>([]);
-  const query = `year=${month.getFullYear()}&month=${month.getMonth() + 1}`;
+  const query = `year=${month.getFullYear()}&month=${month.getMonth() + 1}${family}`;
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
     setError("");
     const options = { signal: controller.signal };
     Promise.all([
+      api<Member[]>("/members", options),
       api<Category[]>("/categories", options),
       api<Account[]>("/accounts", options),
       api<Page<Transaction>>(
-        `/transactions?${query}&page=${tab === "home" ? 1 : page}&pageSize=${tab === "home" ? 5 : 50}${tab === "list" && filter ? `&type=${filter}` : ""}`,
+        `/transactions?${tab === "list" && deleted ? `deleted=true${family}` : query}&page=${tab === "home" ? 1 : page}&pageSize=${tab === "home" ? 5 : 50}${tab === "list" && filter ? `&type=${filter}` : ""}`,
         options,
       ),
       api<Summary>(`/dashboard/summary?${query}`, options),
@@ -70,10 +81,12 @@ export default function App() {
         `/statistics/categories?${query}&type=Expense`,
         options,
       ),
-      api<MonthlyStat[]>("/statistics/monthly?months=6", options),
+      api<MonthlyStat[]>(`/statistics/monthly?months=6${family}`, options),
     ])
-      .then(([c, a, t, s, cs, ms]) => {
+      .then(([m, c, a, t, s, cs, ms]) => {
         if (controller.signal.aborted) return;
+        setMembers(m);
+        setLoaded(true);
         setCategories(c);
         setAccounts(a);
         setTransactions(t);
@@ -88,12 +101,23 @@ export default function App() {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [query, page, tab, filter, revision]);
+  }, [query, page, tab, filter, revision, deleted, family]);
   useEffect(() => {
     if (!toast) return;
     const timer = setTimeout(() => setToast(""), 3000);
     return () => clearTimeout(timer);
   }, [toast]);
+  useEffect(() => {
+    const refresh = () => {
+      if (!document.hidden) setRevision((v) => v + 1);
+    };
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, []);
   function switchMonth(delta: number) {
     setMonth((d) => new Date(d.getFullYear(), d.getMonth() + delta, 1));
     setPage(1);
@@ -148,7 +172,7 @@ export default function App() {
               {tab === "home"
                 ? "每一筆，都是生活。"
                 : tab === "list"
-                  ? "我的帳目"
+                  ? "家庭帳目"
                   : tab === "chart"
                     ? "收支統計"
                     : "設定"}
@@ -163,7 +187,7 @@ export default function App() {
                     : "打造適合自己的記帳習慣。"}
             </p>
           </div>
-          {tab !== "settings" && (
+          {tab !== "settings" && !(tab === "list" && deleted) && (
             <div className="month-switch">
               <button aria-label="上一個月" onClick={() => switchMonth(-1)}>
                 <Icon name="left" size={18} />
@@ -177,12 +201,91 @@ export default function App() {
             </div>
           )}
         </div>
+        <section className="family-toolbar" aria-label="家庭記帳選項">
+          <label>
+            這台裝置常用操作人
+            <select
+              value={validActor ? actor : 0}
+              onChange={(e) => {
+                const id = Number(e.target.value);
+                setActor(id);
+                rememberActor(id);
+              }}
+            >
+              <option value={0}>請選擇操作人</option>
+              {members
+                .filter((m) => m.isActive)
+                .map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name}
+                  </option>
+                ))}
+            </select>
+          </label>
+          {tab !== "settings" && (
+            <label>
+              收支歸屬篩選
+              <select
+                value={ownership}
+                onChange={(e) => {
+                  setOwnership(e.target.value);
+                  setPage(1);
+                }}
+              >
+                <option value="">全家全部收支</option>
+                {members.map((m) => (
+                  <option key={m.id} value={`member:${m.id}`}>
+                    {m.name}
+                    {!m.isActive && "（已停用）"}
+                  </option>
+                ))}
+                <option value="Shared">家庭共同</option>
+                <option value="Unknown">歸屬待確認</option>
+              </select>
+            </label>
+          )}
+          <button disabled={loading} onClick={() => setRevision((v) => v + 1)}>
+            {loading ? "更新中…" : "重新整理"}
+          </button>
+        </section>
+        {!validActor && loaded && (
+          <p className="family-notice">
+            首次使用請選擇常用操作人，也可以在新增或修改時選擇。成員名稱可到設定修改。
+          </p>
+        )}
+        {tab !== "settings" && ownership && (
+          <p className="muted">
+            目前清單與統計只顯示所選歸屬；共同帳目不拆分計算。
+          </p>
+        )}
+        {tab === "list" && (
+          <div className="segmented ledger-mode">
+            <button
+              className={!deleted ? "selected" : ""}
+              onClick={() => {
+                setDeleted(false);
+                setPage(1);
+              }}
+            >
+              目前帳目
+            </button>
+            <button
+              className={deleted ? "selected" : ""}
+              onClick={() => {
+                setDeleted(true);
+                setPage(1);
+              }}
+            >
+              已刪除帳目（全部月份）
+            </button>
+          </div>
+        )}
         {error ? (
           <div role="alert" className="error">
             {error}
             <button onClick={() => setRevision((v) => v + 1)}>重新載入</button>
           </div>
-        ) : loading ? (
+        ) : loading && !loaded ? (
           <div className="loading" role="status">
             正在整理你的帳目…
           </div>
@@ -202,7 +305,13 @@ export default function App() {
               {(tab === "home" || tab === "list") && (
                 <section className="card">
                   <div className="section-heading">
-                    <h2>{tab === "home" ? "最近交易" : "收支明細"}</h2>
+                    <h2>
+                      {tab === "home"
+                        ? "最近交易"
+                        : deleted
+                          ? "已刪除帳目"
+                          : "收支明細"}
+                    </h2>
                     {tab === "home" ? (
                       <button
                         className="text-button"
@@ -253,11 +362,14 @@ export default function App() {
               {tab === "chart" && <MonthlyChart data={monthlyStats} />}
             </div>
             {tab === "settings" && (
-              <Settings
-                categories={categories}
-                accounts={accounts}
-                onChanged={saved}
-              />
+              <>
+                <FamilySettings members={members} onChanged={saved} />
+                <Settings
+                  categories={categories}
+                  accounts={accounts}
+                  onChanged={saved}
+                />
+              </>
             )}
           </>
         )}
@@ -292,6 +404,14 @@ export default function App() {
       </nav>
       {form && (
         <TransactionForm
+          key={
+            form.transaction
+              ? `${form.transaction.id}:${form.transaction.version}`
+              : "new"
+          }
+          members={members}
+          defaultActor={validActor ? actor : 0}
+          onReload={(transaction) => setForm({ transaction })}
           transaction={form.transaction}
           categories={categories}
           accounts={accounts}

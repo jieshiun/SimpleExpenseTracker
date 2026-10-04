@@ -30,10 +30,10 @@ public class StatisticsTests : ApiTestBase
         Assert.Equal(new SummaryDto(65000, 28520, 36480), summary);
         var categories = await Client.GetFromJsonAsync<CategoryStatisticDto[]>("/api/statistics/categories?year=2026&month=10&type=Expense", Json);
         Assert.NotNull(categories); Assert.Equal(28520, categories.Single().Amount); Assert.Equal(100m, categories.Sum(c => c.Percentage));
-        await Client.PutAsJsonAsync($"/api/transactions/{expense.Id}", input with { Amount = 0.30m }, Json);
+        await Client.PutAsJsonAsync($"/api/transactions/{expense.Id}", input with { Amount = 0.30m, Version = expense.Version }, Json);
         await Create(input with { Amount = 0.10m });
         Assert.Equal(0.40m, (await Client.GetFromJsonAsync<SummaryDto>("/api/dashboard/summary?year=2026&month=10", Json))!.Expense);
-        await Client.DeleteAsync($"/api/transactions/{expense.Id}");
+        await DeleteTransaction(expense.Id);
         Assert.Equal(0.10m, (await Client.GetFromJsonAsync<SummaryDto>("/api/dashboard/summary?year=2026&month=10", Json))!.Expense);
     }
     [Fact]

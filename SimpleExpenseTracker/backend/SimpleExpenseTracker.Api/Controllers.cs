@@ -10,7 +10,15 @@ public sealed class TransactionsController(IExpenseService service) : Controller
     [HttpGet("{id:int}")] public Task<TransactionDto> Get(int id, CancellationToken ct) => service.TransactionAsync(id, ct);
     [HttpPost] public async Task<IActionResult> Create(TransactionInput input, CancellationToken ct) { var item = await service.SaveTransactionAsync(null, input, ct); return CreatedAtAction(nameof(Get), new { id = item.Id }, item); }
     [HttpPut("{id:int}")] public Task<TransactionDto> Update(int id, TransactionInput input, CancellationToken ct) => service.SaveTransactionAsync(id, input, ct);
-    [HttpDelete("{id:int}")] public async Task<IActionResult> Delete(int id, CancellationToken ct) { await service.DeleteTransactionAsync(id, ct); return NoContent(); }
+    [HttpDelete("{id:int}")] public async Task<IActionResult> Delete(int id, [FromBody] TransactionAction input, CancellationToken ct) { await service.DeleteTransactionAsync(id, input, ct); return NoContent(); }
+    [HttpPost("{id:int}/restore")] public Task<TransactionDto> Restore(int id, TransactionAction input, CancellationToken ct) => service.RestoreTransactionAsync(id, input, ct);
+}
+[ApiController, Route("api/members")]
+public sealed class MembersController(IExpenseService service) : ControllerBase
+{
+    [HttpGet] public Task<IReadOnlyList<MemberDto>> List(CancellationToken ct) => service.MembersAsync(ct);
+    [HttpPost] public async Task<IActionResult> Create(MemberInput input, CancellationToken ct) { var item = await service.SaveMemberAsync(null, input, ct); return Created($"/api/members", item); }
+    [HttpPut("{id:int}")] public Task<MemberDto> Update(int id, MemberInput input, CancellationToken ct) => service.SaveMemberAsync(id, input, ct);
 }
 [ApiController, Route("api/categories")]
 public sealed class CategoriesController(IExpenseService service) : ControllerBase

@@ -1,6 +1,7 @@
 import type { Transaction } from "./api";
 import { money } from "./format";
 import Icon from "./Icon";
+import { ownerLabel } from "./family";
 export default function TransactionList({
   items,
   onEdit,
@@ -15,7 +16,7 @@ export default function TransactionList({
           <Icon name="wallet" size={32} />
         </span>
         <h3>留下一筆生活記錄</h3>
-        <p>這個月份還沒有帳目，按下「＋」開始吧。</p>
+        <p>目前條件下沒有帳目。</p>
       </div>
     );
   let previous = "";
@@ -39,7 +40,7 @@ export default function TransactionList({
               <span className="transaction-copy">
                 <strong>{t.note || t.categoryName}</strong>
                 <small>
-                  {t.categoryName} · {t.accountName}
+                  {t.categoryName} · {t.accountName} · {ownerLabel(t)}
                 </small>
               </span>
               <strong

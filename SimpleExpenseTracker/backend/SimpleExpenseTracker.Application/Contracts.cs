@@ -5,6 +5,11 @@ namespace SimpleExpenseTracker.Application;
 
 public sealed record TransactionInput
 {
+    [EnumDataType(typeof(OwnershipKind))] public OwnershipKind Ownership { get; init; }
+    [Range(1, int.MaxValue)] public int? OwnerMemberId { get; init; }
+    [Range(1, int.MaxValue)] public int OperatorId { get; init; }
+    [Range(1, int.MaxValue)] public int? Version { get; init; }
+    public Guid? ClientRequestId { get; init; }
     [EnumDataType(typeof(TransactionType))] public TransactionType Type { get; init; }
     [Range(typeof(decimal), "0.01", "999999999999.99")] public decimal Amount { get; init; }
     [Range(1, int.MaxValue)] public int CategoryId { get; init; }
@@ -29,6 +34,9 @@ public sealed record AccountInput
 }
 public sealed record TransactionQuery
 {
+    [EnumDataType(typeof(OwnershipKind))] public OwnershipKind? Ownership { get; init; }
+    [Range(1, int.MaxValue)] public int? OwnerMemberId { get; init; }
+    public bool Deleted { get; init; }
     [Range(1, 9998)] public int? Year { get; init; }
     [Range(1, 12)] public int? Month { get; init; }
     [EnumDataType(typeof(TransactionType))] public TransactionType? Type { get; init; }
@@ -37,7 +45,18 @@ public sealed record TransactionQuery
     [Range(1, 1000000)] public int Page { get; init; } = 1;
     [Range(1, 100)] public int PageSize { get; init; } = 50;
 }
-public sealed record TransactionDto(int Id, TransactionType Type, decimal Amount, int CategoryId, string CategoryName, string CategoryIcon, int AccountId, string AccountName, DateTime TransactionDate, string? Note, DateTime CreatedAt, DateTime UpdatedAt);
+public sealed record TransactionDto(int Id, TransactionType Type, decimal Amount, int CategoryId, string CategoryName, string CategoryIcon, int AccountId, string AccountName, DateTime TransactionDate, string? Note, DateTime CreatedAt, DateTime UpdatedAt, OwnershipKind Ownership, int? OwnerMemberId, string? OwnerMemberName, int? CreatedById, string? CreatedByName, int? UpdatedById, string? UpdatedByName, int Version, bool IsDeleted, DateTime? DeletedAt, int? DeletedById, string? DeletedByName);
+public sealed record MemberDto(int Id, string Name, bool IsActive);
+public sealed record MemberInput
+{
+    [Required, StringLength(50)] public string Name { get; init; } = "";
+    public bool IsActive { get; init; } = true;
+}
+public sealed record TransactionAction
+{
+    [Range(1, int.MaxValue)] public int OperatorId { get; init; }
+    [Range(1, int.MaxValue)] public int Version { get; init; }
+}
 public sealed record CategoryDto(int Id, string Name, TransactionType Type, string Icon, int SortOrder, bool IsActive);
 public sealed record AccountDto(int Id, string Name, AccountType Type, decimal InitialBalance, bool IsActive);
 public sealed record PageDto<T>(IReadOnlyList<T> Items, int Total, int Page, int PageSize);
@@ -48,7 +67,10 @@ public interface IExpenseService
     Task<PageDto<TransactionDto>> TransactionsAsync(TransactionQuery query, CancellationToken ct);
     Task<TransactionDto> TransactionAsync(int id, CancellationToken ct);
     Task<TransactionDto> SaveTransactionAsync(int? id, TransactionInput input, CancellationToken ct);
-    Task DeleteTransactionAsync(int id, CancellationToken ct);
+    Task DeleteTransactionAsync(int id, TransactionAction input, CancellationToken ct);
+    Task<TransactionDto> RestoreTransactionAsync(int id, TransactionAction input, CancellationToken ct);
+    Task<IReadOnlyList<MemberDto>> MembersAsync(CancellationToken ct);
+    Task<MemberDto> SaveMemberAsync(int? id, MemberInput input, CancellationToken ct);
     Task<IReadOnlyList<CategoryDto>> CategoriesAsync(CancellationToken ct);
     Task<CategoryDto> CategoryAsync(int id, CancellationToken ct);
     Task<CategoryDto> SaveCategoryAsync(int? id, CategoryInput input, CancellationToken ct);

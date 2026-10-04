@@ -27,11 +27,18 @@ public abstract class ApiTestBase : IDisposable
     {
         var categories = await Client.GetFromJsonAsync<CategoryDto[]>("/api/categories", Json);
         var accounts = await Client.GetFromJsonAsync<AccountDto[]>("/api/accounts", Json);
-        return new() { Type = type, Amount = amount, CategoryId = categories!.First(c => c.Type == type).Id, AccountId = accounts!.First().Id, TransactionDate = DateTime.Parse(date), Note = "午餐" };
+        var members = await Client.GetFromJsonAsync<MemberDto[]>("/api/members", Json);
+        return new() { Ownership = OwnershipKind.Personal, OwnerMemberId = members!.First().Id, OperatorId = members!.First().Id, ClientRequestId = Guid.NewGuid(), Type = type, Amount = amount, CategoryId = categories!.First(c => c.Type == type).Id, AccountId = accounts!.First().Id, TransactionDate = DateTime.Parse(date), Note = "午餐" };
+    }
+    protected async Task<HttpResponseMessage> DeleteTransaction(int id, int? version = null, int? actor = null)
+    {
+        var item = await Client.GetFromJsonAsync<TransactionDto>($"/api/transactions/{id}", Json);
+        var members = await Client.GetFromJsonAsync<MemberDto[]>("/api/members", Json);
+        return await Client.SendAsync(new HttpRequestMessage(HttpMethod.Delete, $"/api/transactions/{id}") { Content = JsonContent.Create(new TransactionAction { OperatorId = actor ?? members!.First().Id, Version = version ?? item!.Version }, options: Json) });
     }
     protected async Task<TransactionDto> Create(TransactionInput input)
     {
-        var response = await Client.PostAsJsonAsync("/api/transactions", input, Json);
+        var response = await Client.PostAsJsonAsync("/api/transactions", input with { ClientRequestId = Guid.NewGuid() }, Json);
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         return (await response.Content.ReadFromJsonAsync<TransactionDto>(Json))!;
     }
@@ -46,10 +53,10 @@ public class ApiTests : ApiTestBase
     {
         var input = await Input(type);
         var item = await Create(input);
-        var updated = await Client.PutAsJsonAsync($"/api/transactions/{item.Id}", input with { Amount = 420.50m }, Json);
+        var updated = await Client.PutAsJsonAsync($"/api/transactions/{item.Id}", input with { Amount = 420.50m, Version = item.Version }, Json);
         Assert.Equal(HttpStatusCode.OK, updated.StatusCode);
         Assert.Equal(420.50m, (await updated.Content.ReadFromJsonAsync<TransactionDto>(Json))!.Amount);
-        Assert.Equal(HttpStatusCode.NoContent, (await Client.DeleteAsync($"/api/transactions/{item.Id}")).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await DeleteTransaction(item.Id)).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await Client.GetAsync($"/api/transactions/{item.Id}")).StatusCode);
     }
     [Fact]
@@ -68,7 +75,7 @@ public class ApiTests : ApiTestBase
         Assert.False((await Client.GetFromJsonAsync<CategoryDto>($"/api/categories/{input.CategoryId}", Json))!.IsActive);
         Assert.False((await Client.GetFromJsonAsync<AccountDto>($"/api/accounts/{input.AccountId}", Json))!.IsActive);
         Assert.Equal(HttpStatusCode.BadRequest, (await Client.PostAsJsonAsync("/api/transactions", input, Json)).StatusCode);
-        Assert.Equal(HttpStatusCode.OK, (await Client.PutAsJsonAsync($"/api/transactions/{item.Id}", input with { Note = "修改備註" }, Json)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await Client.PutAsJsonAsync($"/api/transactions/{item.Id}", input with { Note = "修改備註", Version = item.Version }, Json)).StatusCode);
     }
     [Fact]
     public async Task FiltersAndPaginationAreValidated()

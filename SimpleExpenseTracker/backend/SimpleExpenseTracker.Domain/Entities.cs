@@ -2,6 +2,13 @@ namespace SimpleExpenseTracker.Domain;
 
 public enum TransactionType { Expense, Income }
 public enum AccountType { Cash, Bank, CreditCard, EWallet, Other }
+public enum OwnershipKind { Unknown, Personal, Shared }
+
+public sealed class HouseholdMember : Entity
+{
+    public string Name { get; set; } = "";
+    public bool IsActive { get; set; } = true;
+}
 
 public abstract class Entity
 {
@@ -29,6 +36,20 @@ public sealed class Account : Entity
 
 public sealed class Transaction : Entity
 {
+    public OwnershipKind Ownership { get; set; }
+    public int? OwnerMemberId { get; set; }
+    public HouseholdMember? OwnerMember { get; set; }
+    public int? CreatedById { get; set; }
+    public HouseholdMember? CreatedBy { get; set; }
+    public int? UpdatedById { get; set; }
+    public HouseholdMember? UpdatedBy { get; set; }
+    public int Version { get; set; } = 1;
+    public bool IsDeleted { get; set; }
+    public DateTime? DeletedAt { get; set; }
+    public int? DeletedById { get; set; }
+    public HouseholdMember? DeletedBy { get; set; }
+    public Guid? ClientRequestId { get; set; }
+    public string? CreationHash { get; set; }
     public TransactionType Type { get; set; }
     public decimal Amount { get; set; }
     public int CategoryId { get; set; }
