@@ -42,6 +42,7 @@ export default function TransactionList({
                 <small>
                   {t.categoryName} · {t.accountName} · {ownerLabel(t)}
                 </small>
+                {t.recurringTransactionId && <small className="recurring-badge">↻ 固定收支</small>}
               </span>
               <strong
                 className={`transaction-amount ${t.type === "Income" ? "income" : ""}`}

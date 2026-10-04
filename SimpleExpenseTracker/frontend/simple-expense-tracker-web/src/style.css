@@ -906,3 +906,11 @@ th:first-child {
 .backup-list li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; }
 .backup-summary { overflow-wrap: anywhere; }
 @media (max-width: 640px) { .backup-actions label { flex-basis: 100%; } }
+.bottom-nav { grid-template-columns: repeat(6, 1fr); padding-inline: 12px; }
+.recurring-summary { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+.recurring-section { margin-top:20px; }
+.recurring-row { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:16px 0; border-bottom:1px solid #eee; }
+.recurring-row p { margin:6px 0; }
+.recurring-actions { display:flex; gap:8px; flex-wrap:wrap; }
+.recurring-filters { display:flex; gap:12px; }
+.recurring-badge { display:inline-block; font-size:11px; color:#39715b; background:#edf6ee; border-radius:6px; padding:3px 6px; margin-left:6px; }

@@ -108,3 +108,25 @@
 - 已驗證瀏覽器安裝所需資源與 Service Worker；未於實體 iPhone／Android 操作安裝主畫面。
 
 所有情境操作與截圖使用獨立的驗收 SQLite 檔，不將示範交易加入使用者的正式帳本。資料庫不納入 Git。
+
+## 固定收支版本（2026/10/04）
+
+- `dotnet test --no-restore -c Release`：39 個後端測試全部通過。其中 5 個排程／時區單元測試、7 個固定收支與備份整合測試；其餘 27 個既有測試亦通過。
+- `node node_modules/vitest/vitest.mjs run`：16 個前端測試全部通過，包含 2 個新增固定收支測試。
+- TypeScript 建置、Vite production build、PWA service worker 生成與 .NET Release publish 成功。
+- 並行 4 次補產生只有 3 個期別；月底 31 日／閏年／間隔 2／起訖邊界測試通過。軟刪除不重新建立，Variable 修改實際金額不改範本，修改範本不改歷史。
+- BackgroundService 以真實 WebApplicationFactory 主機啟動，補齊停機三期；再次重新啟動沒有重複帳目。每小時的實際長時間等待尚未驗收。
+- 新版完整備份匯出／還原包含範本、生成帳目、來源期別與進度，還原後不重複生成。
+- 單一家庭、無登入及金額大於零依使用者確認；不適用規格中的 Family A／B 隔離情境。
+- Debug 測試執行遇到 Windows 應用程式控制 0x800711C7，改以 Release 成功完成全部 39 個測試；沒有修改系統安全設定。
+- 未更新部署容器；無 Docker CLI，尚未驗證 Docker build、容器實際重啟及新頁面手機／瀏覽器視覺流程。既有瀏覽器驗收結果不代表新增頁面已驗收。
+
+實作細節、migration、API 清單與限制見 [固定收支文件](RECURRING.md)。
+
+## 舊版備份匯入相容（2026/10/04）
+
+- 後端 Release 全部 46 個測試通過；新增 2 個舊版往返還原情境、5 個不相容／錯誤舊備份拒絕情境。
+- InitialCreate 個人版、FamilyLedger 家庭版皆可直接上傳，辨識歷史 schema 與完整 migration 前綴後升級暫存檔。預覽不改目前帳本，確認還原後保留交易與家庭歷史資料。
+- 被修改的結構、空 migration 紀錄、未知／較新版本、外鍵失效及錯誤金額回 400；現有帳本維持原內容。
+- 前端 17 個測試通過，新增舊版升級提示與確認前不寫入驗證。TypeScript、Vite、PWA 建置成功。
+- 不新增 migration，使用現有 migration 升級副本；未更新實際容器。

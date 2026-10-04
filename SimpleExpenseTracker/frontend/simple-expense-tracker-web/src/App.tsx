@@ -13,6 +13,7 @@ import TransactionList from "./TransactionList";
 import Settings from "./Settings";
 import FamilySettings from "./FamilySettings";
 import BackupSettings from "./BackupSettings";
+import RecurringPage from "./RecurringPage";
 import { familyQuery, rememberedActor, rememberActor } from "./family";
 import {
   SummaryCards,
@@ -22,11 +23,12 @@ import {
   type CategoryStat,
   type MonthlyStat,
 } from "./Statistics";
-type Tab = "home" | "list" | "chart" | "settings";
+type Tab = "home" | "list" | "chart" | "recurring" | "settings";
 const tabs: { id: Tab; title: string; icon: IconName }[] = [
   { id: "home", title: "首頁", icon: "home" },
   { id: "list", title: "帳目", icon: "list" },
   { id: "chart", title: "統計", icon: "chart" },
+  { id: "recurring", title: "固定收支", icon: "list" },
   { id: "settings", title: "設定", icon: "settings" },
 ];
 export default function App() {
@@ -176,6 +178,7 @@ export default function App() {
                   ? "家庭帳目"
                   : tab === "chart"
                     ? "收支統計"
+                    : tab === "recurring" ? "固定收支"
                     : "設定"}
             </h1>
             <p className="muted">
@@ -185,6 +188,7 @@ export default function App() {
                   ? "日常的收入與花費，都好好記在這裡。"
                   : tab === "chart"
                     ? "看看這個月，錢都花在哪裡。"
+                    : tab === "recurring" ? "安排週期帳目，掌握未來收支。"
                     : "打造適合自己的記帳習慣。"}
             </p>
           </div>
@@ -362,6 +366,7 @@ export default function App() {
               )}
               {tab === "chart" && <MonthlyChart data={monthlyStats} />}
             </div>
+            {tab === "recurring" && <RecurringPage categories={categories} accounts={accounts} members={members} month={month} ownership={ownership} revision={revision} onChanged={saved} />}
             {tab === "settings" && (
               <>
                 <FamilySettings members={members} onChanged={saved} />

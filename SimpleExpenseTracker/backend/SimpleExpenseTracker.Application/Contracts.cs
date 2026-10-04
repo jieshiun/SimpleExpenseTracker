@@ -45,7 +45,7 @@ public sealed record TransactionQuery
     [Range(1, 1000000)] public int Page { get; init; } = 1;
     [Range(1, 100)] public int PageSize { get; init; } = 50;
 }
-public sealed record TransactionDto(int Id, TransactionType Type, decimal Amount, int CategoryId, string CategoryName, string CategoryIcon, int AccountId, string AccountName, DateTime TransactionDate, string? Note, DateTime CreatedAt, DateTime UpdatedAt, OwnershipKind Ownership, int? OwnerMemberId, string? OwnerMemberName, int? CreatedById, string? CreatedByName, int? UpdatedById, string? UpdatedByName, int Version, bool IsDeleted, DateTime? DeletedAt, int? DeletedById, string? DeletedByName);
+public sealed record TransactionDto(int Id, TransactionType Type, decimal Amount, int CategoryId, string CategoryName, string CategoryIcon, int AccountId, string AccountName, DateTime TransactionDate, string? Note, DateTime CreatedAt, DateTime UpdatedAt, OwnershipKind Ownership, int? OwnerMemberId, string? OwnerMemberName, int? CreatedById, string? CreatedByName, int? UpdatedById, string? UpdatedByName, int Version, bool IsDeleted, DateTime? DeletedAt, int? DeletedById, string? DeletedByName, int? RecurringTransactionId = null, DateOnly? RecurringOccurrenceDate = null);
 public sealed record MemberDto(int Id, string Name, bool IsActive);
 public sealed record MemberInput
 {

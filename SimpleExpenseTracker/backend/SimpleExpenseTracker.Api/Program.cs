@@ -13,6 +13,12 @@ builder.Services.AddDbContext<ExpenseDbContext>(o => o.UseSqlite(builder.Configu
 builder.Services.AddScoped<IExpenseService, ExpenseService>();
 builder.Services.AddScoped<IStatisticsService, StatisticsService>();
 builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton(TimeZoneInfo.FindSystemTimeZoneById(builder.Configuration["ApplicationTimeZone"] ?? "Asia/Taipei"));
+builder.Services.AddSingleton<ILocalDateProvider, LocalDateProvider>();
+builder.Services.AddScoped<RecurringTransactionGenerator>();
+builder.Services.AddScoped<IRecurringTransactionGenerator>(sp => sp.GetRequiredService<RecurringTransactionGenerator>());
+builder.Services.AddScoped<IRecurringTransactionService, RecurringTransactionService>();
+builder.Services.AddHostedService<RecurringTransactionBackgroundService>();
 builder.Services.AddSingleton<DatabaseAccess>();
 builder.Services.AddSingleton<BackupService>();
 builder.Services.AddExceptionHandler<ApiExceptionHandler>();

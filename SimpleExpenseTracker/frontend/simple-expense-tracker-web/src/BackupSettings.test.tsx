@@ -53,3 +53,14 @@ it("keeps confirmation and preview after an ambiguous restore failure", async ()
   expect(within(dialog).getByLabelText("還原確認文字")).toHaveValue("還原");
   expect(JSON.parse(fetchMock.mock.calls[2][1].body)).toEqual({ token: details.token, confirmation: "還原" });
 });
+
+it("shows that a legacy backup was upgraded only in a staging copy", async () => {
+  const fetchMock = vi.fn().mockResolvedValueOnce(response([])).mockResolvedValueOnce(response({ ...details, wasUpgraded: true, sourceMigration: "20261004050755_FamilyLedger" }));
+  vi.stubGlobal("fetch", fetchMock); render(<BackupSettings />);
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+  fireEvent.change(screen.getByLabelText("匯入備份檔案"), { target: { files: [new File([new Uint8Array(200)], "legacy.db")] } });
+  const dialog = await screen.findByRole("dialog");
+  expect(within(dialog).getByText(/已在暫存副本升級/)).toHaveTextContent("原始備份檔與目前帳本尚未變更");
+  expect(within(dialog).getByRole("button", { name: "確認取代並還原" })).toBeDisabled();
+  expect(fetchMock).toHaveBeenCalledTimes(2);
+});

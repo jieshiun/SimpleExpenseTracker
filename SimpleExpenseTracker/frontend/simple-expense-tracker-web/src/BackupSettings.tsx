@@ -12,6 +12,9 @@ interface Preview {
   firstDate: string | null;
   lastDate: string | null;
   expiresAt: string;
+  recurringTransactions?: number;
+  wasUpgraded?: boolean;
+  sourceMigration?: string | null;
 }
 interface SafetyBackup { name: string; createdAt: string; size: number }
 const limit = 100 * 1024 * 1024;
@@ -78,8 +81,10 @@ export default function BackupSettings() {
       </>}
       {preview && <Modal title="確認還原整本帳" busy={!!busy} onClose={() => { setPreview(null); setError(""); }}>
         <p>交易 {preview.transactions} 筆（含已刪除 {preview.deletedTransactions} 筆）、分類 {preview.categories} 個、帳戶 {preview.accounts} 個。</p>
+        <p>固定收支範本 {preview.recurringTransactions ?? 0} 個，排程與已產生來源會一起還原。</p>
         <p className="backup-summary">成員：{preview.members.join("、") || "無"}</p>
         <p>交易日期：{preview.firstDate ? `${preview.firstDate} ～ ${preview.lastDate}` : "無交易"}</p>
+        {preview.wasUpgraded && <p className="family-notice">此為舊版備份（{preview.sourceMigration}），已在暫存副本升級至目前版本。原始備份檔與目前帳本尚未變更。</p>}
         <p className="error">還原會取代目前全部帳目，備份之後的資料不會保留。系統會先自動備份目前帳本。</p>
         <p className="muted">確認後暫停帳目操作。預覽有效至 {new Date(preview.expiresAt).toLocaleTimeString("zh-TW")}。若連線中斷，請先重新整理確認結果，再決定是否重試。</p>
         <label>輸入「還原」確認<input aria-label="還原確認文字" value={confirmation} disabled={!!busy} onChange={(e) => setConfirmation(e.target.value)} autoComplete="off" /></label>

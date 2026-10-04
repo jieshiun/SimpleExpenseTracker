@@ -10,10 +10,10 @@ using SimpleExpenseTracker.Domain;
 using Xunit;
 
 namespace SimpleExpenseTracker.Tests;
-public sealed class ApiFactory(string? databasePath = null, bool preserveFiles = false) : WebApplicationFactory<Program>
+public sealed class ApiFactory(string? databasePath = null, bool preserveFiles = false, bool recurringEnabled = false) : WebApplicationFactory<Program>
 {
     private readonly string file = databasePath ?? Path.Combine(Path.GetTempPath(), $"expense-{Guid.NewGuid()}.db");
-    protected override void ConfigureWebHost(IWebHostBuilder builder) => builder.ConfigureAppConfiguration((_, config) => config.AddInMemoryCollection(new Dictionary<string, string?> { ["ConnectionStrings:Default"] = $"Data Source={file};Pooling=False" }));
+    protected override void ConfigureWebHost(IWebHostBuilder builder) => builder.ConfigureAppConfiguration((_, config) => config.AddInMemoryCollection(new Dictionary<string, string?> { ["ConnectionStrings:Default"] = $"Data Source={file};Pooling=False", ["Recurring:Enabled"] = recurringEnabled.ToString() }));
     protected override void Dispose(bool disposing) { base.Dispose(disposing); if (!preserveFiles) { if (File.Exists(file)) File.Delete(file); if (Directory.Exists(file + ".backups")) Directory.Delete(file + ".backups", true); } }
 }
 public abstract class ApiTestBase : IDisposable

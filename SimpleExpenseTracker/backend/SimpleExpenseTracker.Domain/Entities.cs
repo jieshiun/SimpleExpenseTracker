@@ -36,6 +36,9 @@ public sealed class Account : Entity
 
 public sealed class Transaction : Entity
 {
+    public int? RecurringTransactionId { get; set; }
+    public RecurringTransaction? RecurringTransaction { get; set; }
+    public DateOnly? RecurringOccurrenceDate { get; set; }
     public OwnershipKind Ownership { get; set; }
     public int? OwnerMemberId { get; set; }
     public HouseholdMember? OwnerMember { get; set; }

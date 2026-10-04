@@ -2,13 +2,15 @@ using System.Globalization;
 using System.Text.Json;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using SimpleExpenseTracker.Application;
 using SimpleExpenseTracker.Domain;
 using SimpleExpenseTracker.Infrastructure;
 
 namespace SimpleExpenseTracker.Api;
 
-public sealed record BackupPreview(string Token, int Transactions, int DeletedTransactions, int Categories, int Accounts, string[] Members, string? FirstDate, string? LastDate, DateTime ExpiresAt);
+public sealed record BackupPreview(string Token, int Transactions, int DeletedTransactions, int Categories, int Accounts, string[] Members, string? FirstDate, string? LastDate, DateTime ExpiresAt, int RecurringTransactions = 0, bool WasUpgraded = false, string? SourceMigration = null);
 public sealed record SafetyBackup(string Name, DateTime CreatedAt, long Size);
 public sealed record RestoreInput(string Token, string Confirmation);
 
@@ -19,6 +21,7 @@ public sealed class BackupService(IConfiguration config, DatabaseAccess access, 
     private string root = "";
     private string[] schema = [];
     private string[] migrations = [];
+    private readonly Dictionary<string, string[]> legacySchemas = new(StringComparer.Ordinal);
     public string Generation { get; private set; } = "";
     private string Marker => Path.Combine(root, "restore-pending.json");
     private string GenerationFile => Path.Combine(root, "generation.txt");
@@ -53,6 +56,15 @@ public sealed class BackupService(IConfiguration config, DatabaseAccess access, 
         await using var db = await Open(connectionString, ct);
         schema = await ReadSchema(db, ct);
         migrations = await ReadStrings(db, "SELECT MigrationId FROM __EFMigrationsHistory ORDER BY MigrationId", ct);
+        // Build trusted historical schemas from our own migrations, never from uploaded SQL.
+        legacySchemas.Clear();
+        await using var reference = await Open("Data Source=:memory:", ct);
+        await using var context = new ExpenseDbContext(new DbContextOptionsBuilder<ExpenseDbContext>().UseSqlite(reference).Options);
+        foreach (var migration in migrations.SkipLast(1))
+        {
+            await context.GetService<IMigrator>().MigrateAsync(migration, ct);
+            legacySchemas[migration] = await ReadSchema(reference, ct);
+        }
     }
 
     private static async Task<SqliteConnection> Open(string value, CancellationToken ct)
@@ -124,7 +136,8 @@ public sealed class BackupService(IConfiguration config, DatabaseAccess access, 
         {
             await using (var output = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None))
             { await file.CopyToAsync(output, ct); await output.FlushAsync(ct); }
-            return await Validate(path, token, ct);
+            var source = await UpgradeLegacy(path, ct);
+            return (await Validate(path, token, ct)) with { WasUpgraded = source is not null, SourceMigration = source };
         }
         catch { if (File.Exists(path)) File.Delete(path); throw; }
     }
@@ -145,6 +158,38 @@ public sealed class BackupService(IConfiguration config, DatabaseAccess access, 
             throw new AppException(400, "備份名稱不正確。");
         return Path.Combine(root, name);
     }
+    private async Task<string?> UpgradeLegacy(string path, CancellationToken ct)
+    {
+        try
+        {
+            string? source = null;
+            await using (var db = await Open(FileConnection(path), ct))
+            {
+                using var command = db.CreateCommand(); command.CommandText = "PRAGMA trusted_schema=OFF"; await command.ExecuteNonQueryAsync(ct);
+                var history = await ReadStrings(db, "SELECT MigrationId FROM __EFMigrationsHistory ORDER BY MigrationId", ct);
+                if (history.SequenceEqual(migrations)) return null;
+                if (history.Length == 0 || history.Length >= migrations.Length || !history.SequenceEqual(migrations.Take(history.Length))
+                    || !legacySchemas.TryGetValue(history[^1], out var expected) || !expected.SequenceEqual(await ReadSchema(db, ct)))
+                    throw new AppException(400, "備份資料庫結構或版本不相容，僅支援本專案已知的舊版與目前版本。");
+                await CheckIntegrity(db, ct);
+                source = history[^1];
+            }
+            // path is the uploaded staging copy. The live ledger is untouched until restore confirmation.
+            await using var context = new ExpenseDbContext(new DbContextOptionsBuilder<ExpenseDbContext>().UseSqlite(FileConnection(path, false)).Options);
+            await context.Database.MigrateAsync(ct);
+            logger.LogInformation("Upgraded staged backup from {SourceMigration} to {TargetMigration}", source, migrations[^1]);
+            return source;
+        }
+        catch (Exception ex) when (ex is SqliteException or InvalidOperationException or FormatException)
+        { throw new AppException(400, "無法升級備份，請選擇本專案匯出的完整 SQLite 資料庫。"); }
+    }
+    private static async Task CheckIntegrity(SqliteConnection db, CancellationToken ct)
+    {
+        if (!(await ReadStrings(db, "PRAGMA integrity_check", ct)).SequenceEqual(new[] { "ok" })) throw new AppException(400, "備份資料庫已損壞。");
+        using var command = db.CreateCommand(); command.CommandText = "PRAGMA foreign_key_check";
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        if (await reader.ReadAsync(ct)) throw new AppException(400, "備份資料關聯不完整。");
+    }
     private async Task<BackupPreview> Validate(string path, string token, CancellationToken ct)
     {
         try
@@ -152,27 +197,33 @@ public sealed class BackupService(IConfiguration config, DatabaseAccess access, 
             await using var db = await Open(FileConnection(path), ct);
             using (var command = db.CreateCommand()) { command.CommandText = "PRAGMA trusted_schema=OFF"; await command.ExecuteNonQueryAsync(ct); }
             if (!schema.SequenceEqual(await ReadSchema(db, ct)) || !migrations.SequenceEqual(await ReadStrings(db, "SELECT MigrationId FROM __EFMigrationsHistory ORDER BY MigrationId", ct)))
-                throw new AppException(400, "備份資料庫結構或版本不相容，請使用目前版本匯出的完整備份。");
-            if (!(await ReadStrings(db, "PRAGMA integrity_check", ct)).SequenceEqual(new[] { "ok" })) throw new AppException(400, "備份資料庫已損壞。");
-            using (var command = db.CreateCommand())
-            {
-                command.CommandText = "PRAGMA foreign_key_check";
-                await using var reader = await command.ExecuteReaderAsync(ct);
-                if (await reader.ReadAsync(ct)) throw new AppException(400, "備份資料關聯不完整。");
-            }
+                throw new AppException(400, "備份資料庫結構或版本不相容。");
+            await CheckIntegrity(db, ct);
             await using var context = new ExpenseDbContext(new DbContextOptionsBuilder<ExpenseDbContext>().UseSqlite(db).Options);
             // Materialize every application field as well as checking SQLite structure.
             var transactions = await context.Transactions.AsNoTracking().ToListAsync(ct);
             var categories = await context.Categories.AsNoTracking().ToListAsync(ct);
             var accounts = await context.Accounts.AsNoTracking().ToListAsync(ct);
             var members = await context.Members.AsNoTracking().OrderBy(m => m.Id).ToListAsync(ct);
+            var recurring = await context.RecurringTransactions.AsNoTracking().ToListAsync(ct);
+            foreach (var r in recurring)
+            {
+                var schedule = RecurringRules.Schedule(r);
+                try { schedule.Validate(); }
+                catch (AppException) { throw new AppException(400, "備份中的固定收支排程不正確。"); }
+                if (string.IsNullOrWhiteSpace(r.Name) || r.Name.Length > 100 || r.Amount <= 0 || r.Amount > 999999999999.99m || decimal.Round(r.Amount, 2) != r.Amount || !Enum.IsDefined(r.Type) || !Enum.IsDefined(r.AmountType) || r.Version < 1 || (r.Note?.Length ?? 0) > 500 || r.EndDate < r.StartDate || r.EndDate?.Year > 9998 || categories.Single(c => c.Id == r.CategoryId).Type != r.Type
+                    || (r.NextRunDate.HasValue && (r.NextRunDate < r.StartDate || r.NextRunDate.Value.Year > 9998 || r.EndDate < r.NextRunDate || schedule.OnOrAfter(r.NextRunDate.Value) != r.NextRunDate))
+                    || r.LastGeneratedDate?.Year > 9998 || (r.NextRunDate.HasValue && r.LastGeneratedDate >= r.NextRunDate))
+                    throw new AppException(400, "備份中的固定收支資料不正確。");
+            }
+            if (transactions.Any(t => t.RecurringTransactionId.HasValue != t.RecurringOccurrenceDate.HasValue || t.RecurringOccurrenceDate?.Year > 9998)) throw new AppException(400, "備份中的固定收支來源不完整。");
             var categoryTypes = categories.ToDictionary(c => c.Id, c => c.Type);
             if (transactions.Any(t => t.Amount <= 0 || t.Amount > 999999999999.99m || decimal.Round(t.Amount, 2) != t.Amount || !Enum.IsDefined(t.Type) || !Enum.IsDefined(t.Ownership) || t.Version < 1 || t.TransactionDate.Year > 9998 || t.TransactionDate != t.TransactionDate.Date || (t.Note?.Length ?? 0) > 500 || (t.Ownership == OwnershipKind.Personal ? t.OwnerMemberId is null : t.OwnerMemberId is not null) || categoryTypes[t.CategoryId] != t.Type)
                 || categories.Any(c => string.IsNullOrWhiteSpace(c.Name) || c.Name.Length > 50 || !Enum.IsDefined(c.Type) || string.IsNullOrWhiteSpace(c.Icon) || c.Icon.Length > 16 || c.SortOrder is < 0 or > 10000)
                 || accounts.Any(a => string.IsNullOrWhiteSpace(a.Name) || a.Name.Length > 50 || !Enum.IsDefined(a.Type) || Math.Abs(a.InitialBalance) > 999999999999.99m || decimal.Round(a.InitialBalance, 2) != a.InitialBalance)
                 || members.Any(m => string.IsNullOrWhiteSpace(m.Name) || m.Name.Length > 50)) throw new AppException(400, "備份內容不符合帳本資料規則。");
             var dates = transactions.Select(t => t.TransactionDate).Order().ToArray();
-            return new(token, transactions.Count, transactions.Count(t => t.IsDeleted), categories.Count, accounts.Count, members.Select(m => m.Name).ToArray(), dates.Length == 0 ? null : dates[0].ToString("yyyy/MM/dd", CultureInfo.InvariantCulture), dates.Length == 0 ? null : dates[^1].ToString("yyyy/MM/dd", CultureInfo.InvariantCulture), File.GetLastWriteTimeUtc(path).AddMinutes(30));
+            return new(token, transactions.Count, transactions.Count(t => t.IsDeleted), categories.Count, accounts.Count, members.Select(m => m.Name).ToArray(), dates.Length == 0 ? null : dates[0].ToString("yyyy/MM/dd", CultureInfo.InvariantCulture), dates.Length == 0 ? null : dates[^1].ToString("yyyy/MM/dd", CultureInfo.InvariantCulture), File.GetLastWriteTimeUtc(path).AddMinutes(30), recurring.Count);
         }
         catch (Exception ex) when (ex is SqliteException or FormatException or InvalidCastException or OverflowException or InvalidOperationException)
         { throw new AppException(400, "無法讀取備份，請選擇目前版本匯出的完整 SQLite 資料庫。"); }

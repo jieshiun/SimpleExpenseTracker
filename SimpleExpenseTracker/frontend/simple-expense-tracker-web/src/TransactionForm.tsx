@@ -352,12 +352,13 @@ export default function TransactionForm({
           </fieldset>
           {transaction && (
             <div className="audit-info">
+              {transaction.recurringTransactionId && <p className="recurring-badge">↻ 固定收支 · 本期 {transaction.recurringOccurrenceDate?.replaceAll("-", "/")}。修改這筆交易不會改變範本。</p>}
               <p>
-                建立：{transaction.createdByName ?? "未記錄"} ·{" "}
+                建立：{transaction.createdByName ?? (transaction.recurringTransactionId ? "系統自動產生" : "未記錄")} ·{" "}
                 {stamp(transaction.createdAt)}
               </p>
               <p>
-                最後操作：{transaction.updatedByName ?? "未記錄"} ·{" "}
+                最後操作：{transaction.updatedByName ?? (transaction.recurringTransactionId ? "系統自動產生" : "未記錄")} ·{" "}
                 {stamp(transaction.updatedAt)}
               </p>
               {transaction.isDeleted && transaction.deletedAt && (

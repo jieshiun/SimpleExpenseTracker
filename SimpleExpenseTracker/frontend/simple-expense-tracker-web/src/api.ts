@@ -56,6 +56,8 @@ export interface Transaction extends TransactionInput {
   version: number;
   createdAt: string;
   updatedAt: string;
+  recurringTransactionId?: number | null;
+  recurringOccurrenceDate?: string | null;
 }
 export interface Page<T> {
   items: T[];

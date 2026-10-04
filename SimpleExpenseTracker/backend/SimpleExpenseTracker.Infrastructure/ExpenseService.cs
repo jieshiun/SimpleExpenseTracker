@@ -13,7 +13,7 @@ public sealed class ExpenseService(ExpenseDbContext db) : IExpenseService
     private static AppException Missing() => new(404, "找不到這筆資料，可能已被刪除。");
     private static CategoryDto Map(Category c) => new(c.Id, c.Name, c.Type, c.Icon, c.SortOrder, c.IsActive);
     private static AccountDto Map(Account a) => new(a.Id, a.Name, a.Type, a.InitialBalance, a.IsActive);
-    private static TransactionDto Map(Transaction t) => new(t.Id, t.Type, t.Amount, t.CategoryId, t.Category.Name, t.Category.Icon, t.AccountId, t.Account.Name, t.TransactionDate, t.Note, t.CreatedAt, t.UpdatedAt, t.Ownership, t.OwnerMemberId, t.OwnerMember?.Name, t.CreatedById, t.CreatedBy?.Name, t.UpdatedById, t.UpdatedBy?.Name, t.Version, t.IsDeleted, t.DeletedAt, t.DeletedById, t.DeletedBy?.Name);
+    private static TransactionDto Map(Transaction t) => new(t.Id, t.Type, t.Amount, t.CategoryId, t.Category.Name, t.Category.Icon, t.AccountId, t.Account.Name, t.TransactionDate, t.Note, t.CreatedAt, t.UpdatedAt, t.Ownership, t.OwnerMemberId, t.OwnerMember?.Name, t.CreatedById, t.CreatedBy?.Name, t.UpdatedById, t.UpdatedBy?.Name, t.Version, t.IsDeleted, t.DeletedAt, t.DeletedById, t.DeletedBy?.Name, t.RecurringTransactionId, t.RecurringOccurrenceDate);
     private IQueryable<Transaction> Transactions => db.Transactions.Include(t => t.Category).Include(t => t.Account).Include(t => t.OwnerMember).Include(t => t.CreatedBy).Include(t => t.UpdatedBy).Include(t => t.DeletedBy);
     private static AppException Conflict() => new(409, "這筆交易已被更新或刪除，請重新載入最新內容後再操作。");
     private async Task<HouseholdMember> Actor(int id, CancellationToken ct) => await db.Members.SingleOrDefaultAsync(m => m.Id == id && m.IsActive, ct) ?? throw new AppException(400, "請選擇仍啟用的本次操作人。");
@@ -126,7 +126,7 @@ public sealed class ExpenseService(ExpenseDbContext db) : IExpenseService
     {
         var c = id.HasValue ? await db.Categories.FindAsync([id.Value], ct) ?? throw Missing() : new Category();
         if (string.IsNullOrWhiteSpace(input.Name) || string.IsNullOrWhiteSpace(input.Icon)) throw new AppException(400, "名稱與圖示不可空白。");
-        if (id.HasValue && c.Type != input.Type && await db.Transactions.AnyAsync(t => t.CategoryId == id, ct)) throw new AppException(400, "已使用的分類無法改變收入／支出類型。");
+        if (id.HasValue && c.Type != input.Type && (await db.Transactions.AnyAsync(t => t.CategoryId == id, ct) || await db.RecurringTransactions.AnyAsync(r => r.CategoryId == id, ct))) throw new AppException(400, "已使用的分類無法改變收入／支出類型。");
         c.Name = input.Name.Trim(); c.Icon = input.Icon.Trim(); c.Type = input.Type; c.SortOrder = input.SortOrder; c.IsActive = input.IsActive; c.UpdatedAt = DateTime.UtcNow;
         if (!id.HasValue) db.Categories.Add(c);
         await db.SaveChangesAsync(ct); return Map(c);
@@ -134,7 +134,7 @@ public sealed class ExpenseService(ExpenseDbContext db) : IExpenseService
     public async Task DeleteCategoryAsync(int id, CancellationToken ct)
     {
         var c = await db.Categories.FindAsync([id], ct) ?? throw Missing();
-        if (await db.Transactions.AnyAsync(t => t.CategoryId == id, ct)) { c.IsActive = false; c.UpdatedAt = DateTime.UtcNow; }
+        if (await db.Transactions.AnyAsync(t => t.CategoryId == id, ct) || await db.RecurringTransactions.AnyAsync(r => r.CategoryId == id, ct)) { c.IsActive = false; c.UpdatedAt = DateTime.UtcNow; }
         else db.Categories.Remove(c);
         await db.SaveChangesAsync(ct);
     }
@@ -152,7 +152,7 @@ public sealed class ExpenseService(ExpenseDbContext db) : IExpenseService
     public async Task DeleteAccountAsync(int id, CancellationToken ct)
     {
         var a = await db.Accounts.FindAsync([id], ct) ?? throw Missing();
-        if (await db.Transactions.AnyAsync(t => t.AccountId == id, ct)) { a.IsActive = false; a.UpdatedAt = DateTime.UtcNow; }
+        if (await db.Transactions.AnyAsync(t => t.AccountId == id, ct) || await db.RecurringTransactions.AnyAsync(r => r.AccountId == id, ct)) { a.IsActive = false; a.UpdatedAt = DateTime.UtcNow; }
         else db.Accounts.Remove(a);
         await db.SaveChangesAsync(ct);
     }

@@ -2,14 +2,94 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.Data.Sqlite;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using SimpleExpenseTracker.Api;
 using SimpleExpenseTracker.Application;
+using SimpleExpenseTracker.Infrastructure;
 using Xunit;
 
 namespace SimpleExpenseTracker.Tests;
 
 public sealed class BackupTests : ApiTestBase
 {
+    private static async Task<byte[]> LegacyBackup(string migration)
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"legacy-backup-{Guid.NewGuid():N}.db");
+        try
+        {
+            await using (var db = new ExpenseDbContext(new DbContextOptionsBuilder<ExpenseDbContext>().UseSqlite($"Data Source={path};Pooling=False").Options))
+            {
+                await db.GetService<IMigrator>().MigrateAsync("20261003024600_InitialCreate");
+                await SeedData.InitializeAsync(db);
+                var category = await db.Categories.FirstAsync(c => c.Type == SimpleExpenseTracker.Domain.TransactionType.Expense);
+                var account = await db.Accounts.FirstAsync();
+                await db.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO Transactions (Type,Amount,CategoryId,AccountId,TransactionDate,Note,CreatedAt,UpdatedAt) VALUES (0, {"123.45"}, {category.Id}, {account.Id}, {new DateTime(2026, 10, 3)}, {"舊版帳目"}, {DateTime.UtcNow}, {DateTime.UtcNow})");
+                await db.GetService<IMigrator>().MigrateAsync(migration);
+                if (migration.EndsWith("FamilyLedger"))
+                    await db.Database.ExecuteSqlRawAsync("UPDATE Transactions SET IsDeleted=1, Version=3; UPDATE Members SET Name='原家庭成員' WHERE Id=1");
+            }
+            return await File.ReadAllBytesAsync(path);
+        }
+        finally { File.Delete(path); File.Delete(path + "-wal"); File.Delete(path + "-shm"); }
+    }
+    [Theory]
+    [InlineData("20261003024600_InitialCreate")]
+    [InlineData("20261004050755_FamilyLedger")]
+    public async Task LegacyBackupsUpgradeOnlyStagingThenRestorePreservingHistory(string migration)
+    {
+        await Create(await Input(amount: 999)); var before = await Client.GetStringAsync("/api/transactions");
+        var original = await LegacyBackup(migration); var copy = original.ToArray();
+        var preview = await Preview(original);
+        Assert.True(preview.WasUpgraded); Assert.Equal(migration, preview.SourceMigration);
+        Assert.Equal(1, preview.Transactions); Assert.Equal(0, preview.RecurringTransactions);
+        Assert.Equal(before, await Client.GetStringAsync("/api/transactions")); Assert.Equal(copy, original);
+        using var restored = await Restore(preview); restored.EnsureSuccessStatusCode(); AcceptGeneration(restored);
+        var deleted = migration.EndsWith("FamilyLedger");
+        var rows = (await Client.GetFromJsonAsync<PageDto<TransactionDto>>($"/api/transactions?deleted={deleted.ToString().ToLowerInvariant()}", Json))!.Items;
+        var row = Assert.Single(rows); Assert.Equal(123.45m, row.Amount); Assert.Equal("舊版帳目", row.Note);
+        Assert.Equal(deleted ? 3 : 1, row.Version); Assert.Equal(deleted, row.IsDeleted); Assert.Null(row.RecurringTransactionId);
+        if (deleted) Assert.Contains("原家庭成員", preview.Members);
+        Assert.False((await Preview(await Export())).WasUpgraded);
+    }
+    [Theory]
+    [InlineData("CREATE TABLE Unrelated(Id INTEGER)")]
+    [InlineData("DELETE FROM __EFMigrationsHistory")]
+    [InlineData("UPDATE __EFMigrationsHistory SET MigrationId='20990101000000_Future' WHERE MigrationId='20261004050755_FamilyLedger'")]
+    [InlineData("PRAGMA foreign_keys=OFF; UPDATE Transactions SET CategoryId=999999")]
+    [InlineData("UPDATE Transactions SET Amount='invalid'")]
+    public async Task AlteredLegacyBackupIsRejectedWithoutChangingLiveLedger(string sql)
+    {
+        await Create(await Input()); var before = await Client.GetStringAsync("/api/transactions");
+        var path = Path.Combine(Path.GetTempPath(), $"invalid-legacy-{Guid.NewGuid():N}.db");
+        try
+        {
+            await File.WriteAllBytesAsync(path, await LegacyBackup("20261004050755_FamilyLedger"));
+            await using (var db = new SqliteConnection($"Data Source={path};Pooling=False"))
+            { await db.OpenAsync(); using var command = db.CreateCommand(); command.CommandText = sql; await command.ExecuteNonQueryAsync(); }
+            Assert.Equal(HttpStatusCode.BadRequest, (await PreviewResponse(await File.ReadAllBytesAsync(path))).StatusCode);
+            Assert.Equal(before, await Client.GetStringAsync("/api/transactions"));
+        }
+        finally { File.Delete(path); }
+    }
+    [Fact]
+    public async Task RecurringTemplatesAndGeneratedSourceRoundTrip()
+    {
+        var input = await Input();
+        var create = await Client.PostAsJsonAsync("/api/recurring-transactions", new RecurringInput { Name = "固定帳目", CategoryId = input.CategoryId, AccountId = input.AccountId, Amount = 123, Frequency = SimpleExpenseTracker.Domain.RecurringFrequency.Monthly, DayOfMonth = 1, StartDate = new DateOnly(2026, 1, 1), EndDate = new DateOnly(2026, 1, 1) }, Json);
+        create.EnsureSuccessStatusCode();
+        (await Client.PostAsync("/api/recurring-transactions/generate", null)).EnsureSuccessStatusCode();
+        var rules = await Client.GetStringAsync("/api/recurring-transactions");
+        var transactions = await Client.GetStringAsync("/api/transactions");
+        var preview = await Preview(await Export()); Assert.Equal(1, preview.RecurringTransactions);
+        var rule = (await Client.GetFromJsonAsync<RecurringDto[]>("/api/recurring-transactions", Json))!.Single();
+        (await Client.PatchAsJsonAsync($"/api/recurring-transactions/{rule.Id}/status", new RecurringStatus { Version = rule.Version, IsActive = false }, Json)).EnsureSuccessStatusCode();
+        using var restored = await Restore(preview); restored.EnsureSuccessStatusCode(); AcceptGeneration(restored);
+        Assert.Equal(rules, await Client.GetStringAsync("/api/recurring-transactions"));
+        Assert.Equal(transactions, await Client.GetStringAsync("/api/transactions"));
+        Assert.Equal(0, (await (await Client.PostAsync("/api/recurring-transactions/generate", null)).Content.ReadFromJsonAsync<GenerationResult>(Json))!.Generated);
+    }
     private async Task<byte[]> Export()
     {
         using var response = await Client.GetAsync("/api/backups/export");
