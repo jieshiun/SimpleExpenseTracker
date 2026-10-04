@@ -6,6 +6,8 @@
 
 家庭版增補規格與使用方式請見 [家庭共同記帳](docs/FAMILY.md)。初次使用先到設定修改「成員一／成員二」，再在各自手機選擇常用操作人。
 
+設定頁已提供[完整資料庫備份與還原](docs/BACKUP.md)：匯出 SQLite、上傳預覽、確認取代整本帳，以及還原前自動備份與下載。任何人都可操作，沒有管理密碼。
+
 ## 功能與開發狀態
 
 目前功能包含交易新增／編輯／確認刪除／復原、依日期分組的帳目、月份與收支類型篩選、分頁、分類新增／修改／停用／排序、帳戶管理、每月摘要與統計圖表。首頁最近交易顯示所選月份的最新 5 筆；趨勢固定呈現伺服器目前月份往前共 6 個月，不隨頁面選定月份改變。
@@ -112,7 +114,7 @@ dotnet run --project backend/SimpleExpenseTracker.Api --urls http://127.0.0.1:50
 
 第一次啟動自動套用 Migration、建立 `backend/SimpleExpenseTracker.Api/expense-tracker.db` 並加入 16 個分類、3 個帳戶及 2 個家庭成員。重啟不會新增重複資料。健康檢查：`GET http://127.0.0.1:5080/api/health`。
 
-預設資料僅在分類與帳戶資料表皆為空時建立，不會逐項補回使用者刪除的預設項目。啟動紀錄中的 migration 訊息可確認資料庫是否正常初始化。
+預設分類與帳戶僅在首次初始化資料庫時建立，不會在重啟或還原後補回使用者刪除的項目。啟動紀錄中的 migration 訊息可確認資料庫是否正常初始化。
 
 ## Frontend 啟動
 
@@ -204,6 +206,11 @@ SimpleExpenseTracker/
 | 路徑 | 方法／用途 |
 | --- | --- |
 | `/api/health` | GET：健康檢查 |
+| `/api/backups/export` | GET：下載完整 SQLite 備份 |
+| `/api/backups/preview` | POST：上傳檔案、驗證與預覽 |
+| `/api/backups/restore` | POST：確認取代整本帳並還原 |
+| `/api/backups` | GET：還原前自動備份清單 |
+| `/api/backups/saved/{name}` | GET：下載自動備份 |
 | `/api/transactions` | GET 分頁查詢、POST 新增 |
 | `/api/transactions/{id}` | GET、PUT、DELETE |
 | `/api/transactions/{id}/restore` | POST：復原，需操作人與版本 |
@@ -240,7 +247,11 @@ SimpleExpenseTracker/
 
 成功使用 200／201／204；錯誤使用 400／404／409／500 與 `{ status, title, traceId }` ProblemDetails 格式。
 
+資料 API 回應包含 `X-Ledger-Generation`，所有非 GET／HEAD 寫入請帶目前識別碼。還原後舊識別碼回 409；維護期間資料 API 回 503。備份使用方式與限制見[備份文件](docs/BACKUP.md)。
+
 ## Testing
+
+完整備份版本（2026/10/04）：27 個後端測試、14 個前端測試通過，包含完整還原、自動備份、損壞檔拒絕、並行還原、WAL 與中斷重啟恢復。前後端建置成功；此輪未重建 Docker，詳細限制見[驗收紀錄](docs/VALIDATION.md)。
 
 ```sh
 dotnet test

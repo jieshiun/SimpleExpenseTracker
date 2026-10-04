@@ -12,6 +12,7 @@ import TransactionForm from "./TransactionForm";
 import TransactionList from "./TransactionList";
 import Settings from "./Settings";
 import FamilySettings from "./FamilySettings";
+import BackupSettings from "./BackupSettings";
 import { familyQuery, rememberedActor, rememberActor } from "./family";
 import {
   SummaryCards,
@@ -283,7 +284,7 @@ export default function App() {
         {error ? (
           <div role="alert" className="error">
             {error}
-            <button onClick={() => setRevision((v) => v + 1)}>重新載入</button>
+            <button onClick={() => error.includes("帳本已還原") ? window.location.reload() : setRevision((v) => v + 1)}>重新載入</button>
           </div>
         ) : loading && !loaded ? (
           <div className="loading" role="status">
@@ -364,6 +365,7 @@ export default function App() {
             {tab === "settings" && (
               <>
                 <FamilySettings members={members} onChanged={saved} />
+                <BackupSettings />
                 <Settings
                   categories={categories}
                   accounts={accounts}

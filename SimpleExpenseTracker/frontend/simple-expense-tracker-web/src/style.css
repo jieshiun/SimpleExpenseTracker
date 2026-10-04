@@ -897,3 +897,12 @@ th:first-child {
   line-height: 1.6;
   overflow-wrap: anywhere;
 }
+.backup-settings { margin-bottom: 20px; }
+.backup-settings .muted { line-height: 1.7; }
+.backup-actions { display: flex; align-items: start; gap: 20px; flex-wrap: wrap; margin-top: 20px; }
+.backup-actions label { flex: 1; min-width: 0; }
+.backup-actions input { width: 100%; max-width: 100%; }
+.backup-list { padding: 0; list-style: none; }
+.backup-list li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; }
+.backup-summary { overflow-wrap: anywhere; }
+@media (max-width: 640px) { .backup-actions label { flex-basis: 100%; } }

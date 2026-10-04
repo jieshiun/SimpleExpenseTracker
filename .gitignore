@@ -8,5 +8,6 @@
 *.db
 *.db-shm
 *.db-wal
+**/*.db.backups/
 .DS_Store
 *.tsbuildinfo

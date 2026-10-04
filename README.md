@@ -16,6 +16,7 @@
 - **分類與帳戶**：新增、修改、停用及分類排序，保留歷史帳目關聯。
 - **收支統計**：所選月份的收入、支出、結餘與支出分類圖；六個月趨勢以伺服器目前月份為基準。
 - **手機優先 PWA**：響應式畫面、主畫面安裝資源與程式外殼快取。
+- **完整備份與還原**：設定頁下載 SQLite 備份、上傳預覽及整本還原，還原前自動保存原帳本；任何人都可操作，無管理密碼。
 
 目前沒有登入驗證、私人帳目、雲端同步或帳戶餘額計算。「操作人」是自行選擇的紀錄標記，任何能連到服務的人都能查看與修改帳目。資料保存在後端 SQLite；PWA 安裝後仍需連線至後端，離線不接受或排程記帳。
 
@@ -68,9 +69,9 @@ pnpm dev
 
 ## 驗證狀態
 
-依 [2026/10/04 家庭版驗收紀錄](SimpleExpenseTracker/docs/VALIDATION.md)：
+依 [2026/10/04 驗收紀錄](SimpleExpenseTracker/docs/VALIDATION.md)：
 
-- 21 個後端測試、10 個前端測試通過，前後端建置成功。
+- 最新備份版本：27 個後端測試、14 個前端測試通過，前後端建置成功；完整還原、WAL 備份、重啟恢復與舊頁面防誤寫已驗證。
 - 雙裝置瀏覽器驗證包含並行修改、重試防重複、刪除復原與舊資料升級。
 - 375×667、390×844、412×915 與 1200×900 的主要畫面無水平溢位。
 - Release 發佈成功，但本機 Windows 應用程式控制封鎖 Release DLL 執行；瀏覽器驗收使用 Debug 整合版。
@@ -79,6 +80,7 @@ pnpm dev
 ## 文件
 
 - [家庭共同記帳](SimpleExpenseTracker/docs/FAMILY.md)：目前家庭版的使用方式、共同操作規則與資料庫升級說明。
+- [資料備份與還原](SimpleExpenseTracker/docs/BACKUP.md)：匯出、匯入、自動備份、容器更新及 API 說明。
 - [開發規格書](SimpleExpenseTracker/docs/SPECIFICATION.md)：保留原始個人版規格，家庭功能以增補文件與目前實作為準。
 - [完整啟動、Docker、資料備份、PWA 發佈與 API 說明](SimpleExpenseTracker/README.md)
-- [驗收紀錄](SimpleExpenseTracker/docs/VALIDATION.md)：家庭版與原始 MVP 的測試結果及驗證限制。
+- [驗收紀錄](SimpleExpenseTracker/docs/VALIDATION.md)：備份功能、家庭版與原始 MVP 的測試結果及驗證限制。

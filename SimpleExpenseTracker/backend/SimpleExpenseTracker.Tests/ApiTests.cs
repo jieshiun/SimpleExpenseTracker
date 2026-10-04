@@ -10,18 +10,24 @@ using SimpleExpenseTracker.Domain;
 using Xunit;
 
 namespace SimpleExpenseTracker.Tests;
-public sealed class ApiFactory : WebApplicationFactory<Program>
+public sealed class ApiFactory(string? databasePath = null, bool preserveFiles = false) : WebApplicationFactory<Program>
 {
-    private readonly string file = Path.Combine(Path.GetTempPath(), $"expense-{Guid.NewGuid()}.db");
+    private readonly string file = databasePath ?? Path.Combine(Path.GetTempPath(), $"expense-{Guid.NewGuid()}.db");
     protected override void ConfigureWebHost(IWebHostBuilder builder) => builder.ConfigureAppConfiguration((_, config) => config.AddInMemoryCollection(new Dictionary<string, string?> { ["ConnectionStrings:Default"] = $"Data Source={file};Pooling=False" }));
-    protected override void Dispose(bool disposing) { base.Dispose(disposing); if (File.Exists(file)) File.Delete(file); }
+    protected override void Dispose(bool disposing) { base.Dispose(disposing); if (!preserveFiles) { if (File.Exists(file)) File.Delete(file); if (Directory.Exists(file + ".backups")) Directory.Delete(file + ".backups", true); } }
 }
 public abstract class ApiTestBase : IDisposable
 {
     private readonly ApiFactory factory = new();
     protected readonly HttpClient Client;
     protected static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };
-    protected ApiTestBase() { Client = factory.CreateClient(); }
+    protected ApiTestBase()
+    {
+        Client = factory.CreateClient();
+        using var response = Client.GetAsync("/api/backups").GetAwaiter().GetResult();
+        response.EnsureSuccessStatusCode();
+        Client.DefaultRequestHeaders.Add("X-Ledger-Generation", response.Headers.GetValues("X-Ledger-Generation").Single());
+    }
     public void Dispose() { Client.Dispose(); factory.Dispose(); GC.SuppressFinalize(this); }
     protected async Task<TransactionInput> Input(TransactionType type = TransactionType.Expense, decimal amount = 350, string date = "2026-10-03")
     {

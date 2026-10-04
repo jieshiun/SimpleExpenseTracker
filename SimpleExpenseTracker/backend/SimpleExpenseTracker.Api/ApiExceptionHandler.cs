@@ -12,7 +12,7 @@ public sealed class ApiExceptionHandler(ILogger<ApiExceptionHandler> logger) : I
         if (status == 500) logger.LogError("Unhandled API error of type {Type}; trace {Trace}", exception.GetType().Name, context.TraceIdentifier);
         else logger.LogWarning("API returned {Status}; trace {Trace}", status, context.TraceIdentifier);
         context.Response.StatusCode = status;
-        await context.Response.WriteAsJsonAsync(new ProblemDetails { Status = status, Title = status == 500 ? "系統暫時無法完成操作，請稍後重試。" : exception.Message, Extensions = { ["traceId"] = context.TraceIdentifier } }, ct);
+        await context.Response.WriteAsJsonAsync(new ProblemDetails { Status = status, Title = exception is AppException ? exception.Message : "系統暫時無法完成操作，請稍後重試。", Extensions = { ["traceId"] = context.TraceIdentifier } }, ct);
         return true;
     }
 }

@@ -63,15 +63,20 @@ export interface Page<T> {
   page: number;
   pageSize: number;
 }
-export async function api<T>(
+let ledgerGeneration = "";
+export async function request(
   path: string,
   options: RequestInit = {},
-): Promise<T> {
+  acceptRestoredLedger = false,
+): Promise<Response> {
   let response: Response;
   try {
+    const headers = new Headers(options.headers);
+    if (!(options.body instanceof FormData)) headers.set("Content-Type", "application/json");
+    if (ledgerGeneration) headers.set("X-Ledger-Generation", ledgerGeneration);
     response = await fetch(`/api${path}`, {
       ...options,
-      headers: { "Content-Type": "application/json", ...options.headers },
+      headers,
     });
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError")
@@ -89,6 +94,16 @@ export async function api<T>(
         : "操作未完成，請稍後再試。";
     throw new ApiError(title, response.status);
   }
+  const generation = response.headers?.get("X-Ledger-Generation");
+  if (generation) {
+    if (ledgerGeneration && ledgerGeneration !== generation && !acceptRestoredLedger)
+      throw new ApiError("帳本已還原，請重新整理整個頁面再操作。", 409);
+    ledgerGeneration = generation;
+  }
+  return response;
+}
+export async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const response = await request(path, options);
   return response.status === 204
     ? (undefined as T)
     : (response.json() as Promise<T>);
