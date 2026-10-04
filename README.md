@@ -1,10 +1,23 @@
 # 日常記帳
 
-手機優先的個人記帳 App，以 .NET 8、React、TypeScript 與 SQLite 開發。
+手機優先的家庭共同記帳 App，以 .NET 8、React、TypeScript 與 SQLite 開發。家人連到同一個後端即可共用一本帳，全部收入與支出彼此公開。
 
-支援收入／支出新增、修改與刪除、分類與帳戶管理、每月收支摘要、分類比例、六個月趨勢及 PWA。
+支援收入／支出新增、修改、確認刪除與復原、分類與帳戶管理、每月收支摘要、分類比例、六個月趨勢及 PWA。
 
-![首頁](SimpleExpenseTracker/docs/screenshots/home-desktop.png)
+![家庭版桌面首頁](SimpleExpenseTracker/docs/screenshots/family-desktop.png)
+
+[家庭版手機首頁](SimpleExpenseTracker/docs/screenshots/family-mobile.png)
+
+## 主要功能
+
+- **家庭共同帳本**：管理成員，標記個人或家庭共同收支，依歸屬篩選帳目與統計；共同金額只計算一次。
+- **日常記帳**：依日期分組、月份與收支類型篩選、分頁，以及交易建立與最後操作紀錄。
+- **安全更新帳目**：版本檢查避免同時修改互相覆蓋，新增重試使用同一識別碼避免重複入帳；已刪除帳目可復原。
+- **分類與帳戶**：新增、修改、停用及分類排序，保留歷史帳目關聯。
+- **收支統計**：所選月份的收入、支出、結餘與支出分類圖；六個月趨勢以伺服器目前月份為基準。
+- **手機優先 PWA**：響應式畫面、主畫面安裝資源與程式外殼快取。
+
+目前沒有登入驗證、私人帳目、雲端同步或帳戶餘額計算。「操作人」是自行選擇的紀錄標記，任何能連到服務的人都能查看與修改帳目。資料保存在後端 SQLite；PWA 安裝後仍需連線至後端，離線不接受或排程記帳。
 
 ## 快速開始
 
@@ -43,10 +56,29 @@ pnpm dev
 
 開啟 [http://127.0.0.1:5173](http://127.0.0.1:5173)。Docker 與本機後端都使用 5080，請擇一啟動。
 
+### 家庭初次使用
+
+1. 到「設定 → 家庭成員」修改預設的「成員一／成員二」。
+2. 每台裝置選擇自己的「這台裝置常用操作人」，選擇儲存在該瀏覽器，不會同步到其他裝置。
+3. 新增交易時選擇收支歸屬，可指定成員或「家庭共同」；修改、刪除與復原也需選擇操作人。
+
+兩支手機必須連到同一個後端與資料庫。上述 `localhost`／`127.0.0.1` 網址供電腦本機使用；手機需使用可連到該電腦的服務網址。手機安裝 PWA 需受信任的 HTTPS，部署與資料備份方式見[完整 README](SimpleExpenseTracker/README.md)。
+
+從個人版升級時，既有帳目保留並顯示「歸屬待確認」，可逐筆編輯補上歸屬。升級前先停止服務並備份 SQLite 資料庫及存在的 WAL／SHM 檔案。
+
+## 驗證狀態
+
+依 [2026/10/04 家庭版驗收紀錄](SimpleExpenseTracker/docs/VALIDATION.md)：
+
+- 21 個後端測試、10 個前端測試通過，前後端建置成功。
+- 雙裝置瀏覽器驗證包含並行修改、重試防重複、刪除復原與舊資料升級。
+- 375×667、390×844、412×915 與 1200×900 的主要畫面無水平溢位。
+- Release 發佈成功，但本機 Windows 應用程式控制封鎖 Release DLL 執行；瀏覽器驗收使用 Debug 整合版。
+- Docker 建置／啟動與實體手機主畫面安裝尚未實際驗證。
+
 ## 文件
 
-- [開發規格書](SimpleExpenseTracker/docs/SPECIFICATION.md)：原始完整規格，包含資料模型、API、開發階段與 MVP 驗收條件。
+- [家庭共同記帳](SimpleExpenseTracker/docs/FAMILY.md)：目前家庭版的使用方式、共同操作規則與資料庫升級說明。
+- [開發規格書](SimpleExpenseTracker/docs/SPECIFICATION.md)：保留原始個人版規格，家庭功能以增補文件與目前實作為準。
 - [完整啟動、Docker、資料備份、PWA 發佈與 API 說明](SimpleExpenseTracker/README.md)
-- [驗收紀錄](SimpleExpenseTracker/docs/VALIDATION.md)：既有紀錄為 15 個後端、7 個前端測試通過。
-
-目前沒有登入驗證或雲端同步；PWA 安裝後仍需連線至後端才能存取帳目。
+- [驗收紀錄](SimpleExpenseTracker/docs/VALIDATION.md)：家庭版與原始 MVP 的測試結果及驗證限制。
